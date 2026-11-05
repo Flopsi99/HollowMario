@@ -1,14 +1,23 @@
-param([string]$GameDirectory='E:\SteamLibrary\steamapps\common\Hollow Knight')
+param([string]$GameDirectory='E:\SteamLibrary\steamapps\common\Hollow Knight',[string]$RomPathForChecks,[switch]$ReuseManual)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-& (Join-Path $PSScriptRoot 'Build-Release.ps1') -GameDirectory $GameDirectory
-if($LASTEXITCODE){throw 'Community API release build failed.'}
+if(!$ReuseManual){
+    & (Join-Path $PSScriptRoot 'Build-Release.ps1') -GameDirectory $GameDirectory -RomPathForChecks $RomPathForChecks
+    if($LASTEXITCODE){throw 'Community API release build failed.'}
+}
 $manual=Get-Content -LiteralPath (Join-Path $root '.artifacts/releases/latest.json') -Raw|ConvertFrom-Json
+if($ReuseManual){
+    . (Join-Path $PSScriptRoot 'Release-SourceStamp.ps1')
+    $version=[regex]::Match([IO.File]::ReadAllText((Join-Path $root 'Plugin.cs')),'PluginVersion\s*=\s*"([^"]+)"').Groups[1].Value
+    if($manual.version -ne $version -or (Get-FileHash -LiteralPath $manual.archive -Algorithm SHA256).Hash -ne $manual.sha256 -or
+        (Get-HollowMarioSourceStamp $root) -ne $manual.sourceStamp){throw 'The reusable manual build does not match this source, version or verified archive.'}
+}
 $releaseRoot=Join-Path $root '.artifacts/releases'
 $stamp=[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
 $stage=Join-Path $releaseRoot ('HollowMario-'+$manual.version+'-melty-'+$stamp)
 function Copy-Tree([string]$source,[string]$target){foreach($file in Get-ChildItem -LiteralPath $source -Recurse -File){$dest=Join-Path $target $file.FullName.Substring($source.Length+1);New-Item -ItemType Directory -Path (Split-Path -Parent $dest) -Force|Out-Null;Copy-Item -LiteralPath $file.FullName -Destination $dest}}
 Copy-Tree $manual.stage $stage
+if(Test-Path -LiteralPath (Join-Path $stage 'melty-recipe.draft.json')){Remove-Item -LiteralPath (Join-Path $stage 'melty-recipe.draft.json')}
 Copy-Item -LiteralPath (Join-Path $root 'Setup/MELTY-START-HERE.txt') -Destination (Join-Path $stage 'START-HERE.txt') -Force
 $fileName='HollowMario-'+$manual.version+'-melty-'+$stamp+'.zip'
 $recipe=Get-Content -LiteralPath (Join-Path $root 'Setup/melty-auto-recipe.draft.json') -Raw|ConvertFrom-Json

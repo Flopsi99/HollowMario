@@ -46,7 +46,9 @@
       "--rom-dir",
       "{managed}/own/super-mario-64",
       "--native-dir",
-      "{managed}/runtime"
+      "{managed}/runtime",
+      "--result-file",
+      "{managed}/setup/launch-result.json"
     ]
   },
   "ownCopies": [

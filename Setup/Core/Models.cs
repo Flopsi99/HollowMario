@@ -6,6 +6,12 @@ using System.Runtime.Serialization.Json;
 namespace HollowMario.Setup
 {
     public enum InstallMode { LegacyStandalone = 0, CommunityApi = 1 }
+    [DataContract] public sealed class LaunchResult
+    {
+        [DataMember] public bool Success;
+        [DataMember] public string Stage;
+        [DataMember] public string Message;
+    }
     [DataContract] public sealed class Preferences
     {
         [DataMember] public string GameDirectory;

@@ -27,6 +27,18 @@ launch uses Steam; Melty launch starts that game's executable as a child so its
 environment/test settings survive. No separate game profile is created. The
 launcher does not downgrade games or change Steam branches.
 
+The GitHub installer always opens its Install / Update / Uninstall window and
+shows the selected paths, even when it remembers them. Installation requires
+the player's button click; launching afterward is optional.
+Only --melty selects background automatic setup. It requires Melty's explicit
+game, supported own-copy ROM and prepared-runtime paths, never opens a dialog,
+and never falls back to a developer's cached paths. It leaves manual preferences
+unchanged, inherits Melty's test environment into the actual child game and
+waits for that game to exit. Failures return a nonzero status and optional small
+result JSON, rather than opening the manual installer or starting a compiler.
+Build-MeltyRelease.ps1 -ReuseManual packages the existing checked manual build
+only if its source stamp, version and archive checksum still match.
+
 Manual setup builds the native runtime using pinned upstream inputs and cached
 tools. Melty declares libsm64 to its managed runtime folder and passes that path
 to setup, which copies only sm64.dll into the mod's own runtime folder. A missing

@@ -9,7 +9,7 @@ internal static class Program
     private static int count;
     private static void Check(bool result,string why){count++;if(!result)throw new Exception(why);}
     private static void Write(string root,string file,string content){string path=Disk.Under(root,file);Directory.CreateDirectory(Path.GetDirectoryName(path));File.WriteAllText(path,content);}
-    private static int Main(string[] args)
+    [STAThread] private static int Main(string[] args)
     {
         try
         {
@@ -126,6 +126,7 @@ internal static class Program
             if(args.Length>1)CheckApiInstall(Path.Combine(scratch,"fresh-api-install"),args[1]);
             count+=UninstallChecks.Run(Path.Combine(scratch,"removal"));
             count+=UpgradeChecks.Run(Path.Combine(scratch,"upgrade"),update);
+            count+=LauncherChecks.Run(Path.Combine(scratch,"launcher"),args.Length>1?args[1]:null,args.Length>2?args[2]:null);
             Console.WriteLine("PASS: "+count+" API-only setup checks: package integrity, update/migration, ROM handoff, legacy removal, linked-path rejection and preservation of saves/ROMs/other mods. No game or installer UI was started.");return 0;
         }
         catch(Exception error){Console.Error.WriteLine(error);return 1;}

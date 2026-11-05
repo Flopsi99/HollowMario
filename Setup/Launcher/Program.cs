@@ -32,6 +32,8 @@ namespace HollowMario.Launcher
                     default: throw new ArgumentException("Unrecognized Hollow Mario setup option.");
                 }
             }
+            if(result.Melty&&(result.Choose||result.RomOnly||result.Render!=null))
+                throw new ArgumentException("Melty's background launch cannot open interactive setup.");
             return result;
         }
     }
@@ -39,11 +41,15 @@ namespace HollowMario.Launcher
     {
         [STAThread] private static void Main(string[] args)
         {
-            Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            Options options=null;
+            bool melty=Array.IndexOf(args,"--melty")>=0;
             try
             {
-                var options = Options.Parse(args);
-                if (!options.Choose && !options.RomOnly && options.Render == null && RunRemembered(options)) return;
+                options = Options.Parse(args);
+                // Opening the GitHub download always opens setup. Only Melty's
+                // explicit flag authorises an unattended installation/launch.
+                if(options.Melty){RunAutomatic(options);return;}
+                Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
                 using (var form = new SetupWindow(options))
                 {
                     if (options.Render != null) { form.Render(options.Render); return; }
@@ -52,18 +58,30 @@ namespace HollowMario.Launcher
             }
             catch (Exception error)
             {
+                if(melty)
+                {
+                    Environment.ExitCode=1;
+                    if(options?.Result!=null)
+                        try{JsonFile.Write(options.Result,new LaunchResult{Success=false,Stage="setup",Message=error.Message});}catch(Exception){ }
+                    Console.Error.WriteLine("Hollow Mario could not start: "+error.Message);
+                    return;
+                }
                 int render=Array.IndexOf(args,"--render");
                 if(render>=0 && render+1<args.Length){File.WriteAllText(args[render+1]+".error.txt",error.ToString());Environment.ExitCode=1;}
                 else MessageBox.Show(error.Message, "Hollow Mario", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
-        private static bool RunRemembered(Options options)
+        private static void RunAutomatic(Options options)
         {
-            var preferences = Preferences.Load();
-            string game = options.Game ?? preferences.GameDirectory ?? FindGame();
-            if (string.IsNullOrWhiteSpace(game) || !File.Exists(Path.Combine(game,"hollow_knight.exe"))) return false;
-            string rom = RomResolver.Find(options.RomDirectory, options.RomFile, preferences.RomPath, game);
-            if (!RomResolver.Valid(rom)) return false;
+            if(string.IsNullOrWhiteSpace(options.Game)||!File.Exists(Path.Combine(options.Game,"hollow_knight.exe")))
+                throw new InvalidDataException("Melty did not supply an installed Hollow Knight folder. Check the required game in Melty, then try Play again.");
+            string game=Path.GetFullPath(options.Game);
+            // A remembered local developer ROM must not hide a broken Melty
+            // own-copy handoff. Never browse, prompt or replace Melty's game.
+            string rom=RomResolver.FindSupplied(options.RomDirectory,options.RomFile);
+            if(rom==null)throw new InvalidDataException("Melty has not supplied a supported Super Mario 64 US ROM. Add your own copy in Melty, then try Play again.");
+            if(string.IsNullOrWhiteSpace(options.NativeDirectory)||!File.Exists(Path.Combine(options.NativeDirectory,"sm64.dll")))
+                throw new InvalidDataException("Melty has not finished preparing Mario's runtime. Finish or repair this release's installation in Melty, then try Play again.");
             RequireGameClosed();
             var installer = new Installer(AppDomain.CurrentDomain.BaseDirectory);
             installer.Verify();
@@ -71,10 +89,11 @@ namespace HollowMario.Launcher
             GameInstall.EnsureApi(game, _ => {});
             RequireGameClosed();
             installer.PrepareCommunity(game, preparedNative:options.NativeDirectory, requireGameClosed:RequireGameClosed);
-            preferences.ConfirmLoadingChoice(game, InstallMode.CommunityApi);
-            RomResolver.Remember(rom, preferences);
-            if (!options.NoLaunch) Launch(game, rom, options.Melty);
-            return true;
+            if(options.Result!=null)JsonFile.Write(options.Result,new LaunchResult{Success=true,Stage="ready",Message="Hollow Mario is installed and ready."});
+            // Melty supplies these paths every time, so leave the manual
+            // installer's remembered choices untouched. The child gets its ROM
+            // folder and Melty's test environment directly at launch.
+            if (!options.NoLaunch) Launch(game, rom, true);
         }
         internal static void RequireGameClosed()
         {
@@ -87,15 +106,20 @@ namespace HollowMario.Launcher
             if (melty)
             {
                 // Keep Melty's test/launch environment in the actual game process.
-                var info = new ProcessStartInfo(Path.Combine(game,"hollow_knight.exe")) { WorkingDirectory=game, UseShellExecute=false };
-                info.EnvironmentVariables["MARIO_HK_ROMDIR"] = Path.GetDirectoryName(rom);
-                info.EnvironmentVariables["SteamAppId"] = "367520";
-                info.EnvironmentVariables["SteamGameId"] = "367520";
+                var info = MeltyStartInfo(game,rom);
                 using (var process = Process.Start(info)) { process.WaitForExit(); Environment.ExitCode=process.ExitCode; }
                 return;
             }
             string steam = SteamPath();
             Process.Start(new ProcessStartInfo(steam, "-applaunch 367520") { UseShellExecute=false, CreateNoWindow=true });
+        }
+        internal static ProcessStartInfo MeltyStartInfo(string game,string rom)
+        {
+            var info=new ProcessStartInfo(Path.Combine(game,"hollow_knight.exe")){WorkingDirectory=game,UseShellExecute=false};
+            info.EnvironmentVariables["MARIO_HK_ROMDIR"]=Path.GetDirectoryName(rom);
+            info.EnvironmentVariables["SteamAppId"]="367520";
+            info.EnvironmentVariables["SteamGameId"]="367520";
+            return info;
         }
         internal static string SteamPath()
         {

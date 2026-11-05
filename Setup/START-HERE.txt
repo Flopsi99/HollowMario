@@ -6,8 +6,10 @@ and your own unmodified Super Mario 64 US ROM.
 Extract this whole download, then open HollowMario-Setup.exe.
 Setup uses the Hollow Knight community API. If it is missing, setup obtains
 the supported API from its official release. The Lumafly application is not
-required. Later launches reuse your game and ROM locations and apply updates
-automatically. Start with --choose to open setup again.
+required. Setup always opens its window, with Install / Update and Uninstall
+choices and your selected game and ROM paths. Remembered paths are prefilled;
+nothing installs or launches until you choose an action. Launch after installing
+is optional, or use Play Hollow Mario once installation finishes.
 
 If Melty already supplied your ROM, setup uses it. Otherwise choose your own
 file once. The location is remembered. Your ROM and extracted assets are never

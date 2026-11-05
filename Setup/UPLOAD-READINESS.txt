@@ -1,5 +1,10 @@
 HOLLOW MARIO - RELEASE PREPARATION STILL REQUIRED
 
+Current candidate: 0.10.122. Gameplay is the same quiet build as 0.10.121;
+the changes restore the manual installer window and separate Melty's unattended
+launch. Reuse the existing Hollow Mario listing:
+6fe0029b-dc4e-4e23-b01f-b03d5c5fa380. Do not create a duplicate listing.
+
 The current build uses the Hollow Knight community API only. The manual and
 Melty builders package the same API payload. Setup installs official API v77
 when the supported game does not already have it. There is no injection route,

@@ -1,6 +1,6 @@
 # Hollow Mario
 
-Current local candidate: **0.10.121** (community API only).
+Current local candidate: **0.10.122** (community API only).
 Recent work covers Mario interactions, spells, arrivals, death/hazard recovery,
 bench and map poses, web capture, creator unlock artwork/text, sound settings
 and optional hitbox display. The Shaman knockout now also follows native FSM

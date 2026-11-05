@@ -59,6 +59,12 @@ namespace HollowMario.Setup
             }
             return candidates.Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase).FirstOrDefault(Valid);
         }
+        public static string FindSupplied(string suppliedDirectory,string suppliedFile=null)
+        {
+            var candidates=new List<string>{suppliedFile};
+            AddDirectory(candidates,suppliedDirectory);
+            return candidates.Where(x=>!string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase).FirstOrDefault(Valid);
+        }
         private static void AddDirectory(List<string> result, string folder)
         {
             if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return;

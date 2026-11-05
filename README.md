@@ -8,12 +8,12 @@ Play Hollow Knight as Mario, with Mario movement and combat adapted to Hallownes
 The new community-API-only build has not been published on Melty yet.
 
 ### Play locally
-Download **HollowMario-0.10.121-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
+Download **HollowMario-0.10.122-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
 
 1. Extract the entire ZIP and open **HollowMario-Setup.exe**.
 2. Setup uses the community API and installs the supported official API automatically if needed.
-3. Select your Hollow Knight installation and your own supported Super Mario 64 US ROM.
-4. Let setup finish, then play. Mario starts selected; **M** switches characters.
+3. Review the shown paths or select your Hollow Knight installation and your own supported Super Mario 64 US ROM. Setup always opens this window, including on updates.
+4. Choose **Install / Update**. When setup finishes, choose **Play Hollow Mario**. Launching automatically after installation is optional. Mario starts selected; **M** switches characters.
 
 Requires Windows, the Steam version of Hollow Knight **1.5.78.11833**, and your own unmodified Super Mario 64 US ROM. The API route supports community API **v77**. Lumafly itself is optional.
 

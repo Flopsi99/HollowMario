@@ -5,7 +5,10 @@ Super Mario 64 US ROM. Install and press Play in Melty.
 
 Hollow Mario uses the Hollow Knight community API only. The included setup
 checks your game, installs the supported official API if needed, applies the
-mod and starts your original game. Lumafly is not required. Existing community
+mod and starts your original game in the background launch flow. No installer
+window or path chooser opens: Melty supplies the game, own-copy and runtime
+folders. Missing inputs stop with an error instead of opening manual setup.
+Lumafly is not required. Existing community
 mods and settings are kept. No injection loader or separate profile is used.
 An unsupported game version stops setup; no Steam downgrade is performed.
 Each install/update migrates settings and removes recognized older Hollow Mario
@@ -16,6 +19,9 @@ prepares its pinned libsm64 dependency on your PC on first install. This may
 take a minute or more and is cached. That preparation uses public decompilation
 sources for the engine and model; textures, animation and audio still require
 your own ROM at runtime. The ROM and local output are never uploaded.
+
+This uses the same quiet gameplay build as the GitHub release. Developer
+traces and external crash-capture programs are not enabled or started.
 
 Mario starts selected; M switches between Mario and the Knight.
 This remains a work-in-progress adaptation: not every charm combination

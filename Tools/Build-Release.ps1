@@ -1,17 +1,11 @@
-param([string]$GameDirectory='E:\SteamLibrary\steamapps\common\Hollow Knight')
+param([string]$GameDirectory='E:\SteamLibrary\steamapps\common\Hollow Knight',[string]$RomPathForChecks)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 & (Join-Path $PSScriptRoot 'Verify-IndependentSource.ps1')
 $version=[regex]::Match([IO.File]::ReadAllText((Join-Path $root 'Plugin.cs')),'PluginVersion\s*=\s*"([^"]+)"').Groups[1].Value
 if(!$version){throw 'Shared mod version missing.'}
-function Source-Stamp {
-    $inputs=@(& git -C $root ls-files --cached --others --exclude-standard -- '*.cs' '*.csproj' '*.props' '*.ps1' 'Assets/*.png' 'Setup/*.txt' 'Setup/*.json' 'IndependentHost/*.md')
-    $inputs+=@('Tools/Verify-IndependentSource.ps1','IndependentHost/PROVENANCE.md')
-    $hashes=@($inputs|Sort-Object -Unique|ForEach-Object { $path=Join-Path $root $_;if(Test-Path -LiteralPath $path -PathType Leaf){$_+':'+(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash} })
-    $sha=[Security.Cryptography.SHA256]::Create()
-    try{return [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($hashes -join "`n")))).Replace('-','')}finally{$sha.Dispose()}
-}
-$sourceStamp=Source-Stamp
+. (Join-Path $PSScriptRoot 'Release-SourceStamp.ps1')
+$sourceStamp=Get-HollowMarioSourceStamp $root
 $builder=Join-Path $root 'IndependentHost/Build-ApiExperiment.ps1'
 & $builder -GameDirectory $GameDirectory -SkipNative
 if($LASTEXITCODE){throw 'Community API host build failed.'}
@@ -19,9 +13,10 @@ $apiHost=[IO.File]::ReadAllText((Join-Path $root '.artifacts/independent-host/la
 & dotnet build (Join-Path $root 'Setup/Tests/HollowMario.Setup.Tests.csproj') -c Release -m:1 "-p:HollowKnightDir=$GameDirectory" --nologo -v quiet
 if($LASTEXITCODE){throw 'Setup tests did not build.'}
 $scratch=Join-Path ([IO.Path]::GetTempPath()) ('hollowmario-checks-'+[Guid]::NewGuid().ToString('N').Substring(0,8))
-& (Join-Path $root 'Setup/Tests/bin/Release/net472/HollowMario.Setup.Tests.exe') $scratch $GameDirectory
+if($RomPathForChecks){& (Join-Path $root 'Setup/Tests/bin/Release/net472/HollowMario.Setup.Tests.exe') $scratch $GameDirectory $RomPathForChecks}
+else{& (Join-Path $root 'Setup/Tests/bin/Release/net472/HollowMario.Setup.Tests.exe') $scratch $GameDirectory}
 if($LASTEXITCODE){throw 'Setup regression tests failed.'}
-if((Source-Stamp) -ne $sourceStamp){throw 'Source changed during the community API build. Rebuild before packaging.'}
+if((Get-HollowMarioSourceStamp $root) -ne $sourceStamp){throw 'Source changed during the community API build. Rebuild before packaging.'}
 $releaseRoot=Join-Path $root '.artifacts/releases'
 $stage=Join-Path $releaseRoot ('HollowMario-'+$version+'-'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
 $api=Join-Path $stage 'payloads/api'
