@@ -1,0 +1,105 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>HollowMario</AssemblyName>
+    <RootNamespace>HollowMario</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DefineConstants>$(DefineConstants);DOUBLE;HOLLOW_KNIGHT_API</DefineConstants>
+    <LoaderTarget Condition="'$(LoaderTarget)' == ''">HollowKnightApi</LoaderTarget>
+  </PropertyGroup>
+  <Target Name="RejectRetiredHost" BeforeTargets="CoreCompile">
+    <Error Condition="'$(LoaderTarget)' != 'HollowKnightApi'" Text="Injection support has been removed. Build the HollowKnightApi target." />
+    <Error Condition="Exists('ThirdParty/MarioBridge/MarioHollow.dll') Or Exists('Legacy/Geometry.cs') Or Exists('Legacy/MarioMath.cs') Or Exists('Legacy/WorldCollision.cs') Or Exists('Tools/ApiCompatibility/BridgeBuilder.cs.tool')" Text="Remove the retired bridge inputs; the community API requires the replacement host." />
+  </Target>
+  <PropertyGroup>
+    <HollowKnightDir>E:\SteamLibrary\steamapps\common\Hollow Knight</HollowKnightDir>
+    <ApiPackageDir Condition="'$(ApiPackageDir)' == ''">$(MSBuildProjectDirectory)\.artifacts\independent-host\services</ApiPackageDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Compatibility\**\*.cs" />
+    <Compile Remove="Setup\**" />
+    <Compile Remove="LocalTools\**" />
+    <Compile Remove="IndependentHost\**" />
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Compile Remove="Tools\RoomEntryChecks\**" />
+    <Compile Remove="Tools\ShadeRechargeChecks\**" />
+    <Compile Remove="Tools\DiveSlideChecks\**" />
+    <Compile Remove="Tools\QuickSlashChecks\**" />
+    <Compile Remove="Tools\BenchReturnChecks\**" />
+    <Compile Remove="Tools\ApiCompatibility\**" />
+    <EmbeddedResource Include="Assets\*.png" LogicalName="HollowMario.%(Filename)%(Extension)" />
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <PropertyGroup>
+    <OutputPath Condition="'$(LoaderTarget)' == 'HollowKnightApi'">.artifacts\independent-host\companion\</OutputPath>
+    <IntermediateOutputPath>obj\$(LoaderTarget)\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="Setup\Core\HollowMario.Setup.Core.csproj" />
+    <Compile Include="Compatibility\ApiEntry.cs" />
+    <Compile Include="Compatibility\ApiModSettings.cs" />
+    <Compile Include="Compatibility\ApiArgumentAdapter.cs" />
+    <Compile Include="Compatibility\ApiRomSetup.cs" />
+    <Reference Include="HollowMario.ApiRuntime">
+      <HintPath>$(ApiPackageDir)\HollowMario.ApiRuntime.dll</HintPath><Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(ApiPackageDir)\0Harmony.dll</HintPath><Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.RuntimeDetour">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\MonoMod.RuntimeDetour.dll</HintPath><Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath Condition="'$(HollowKnightApiAssembly)' == ''">$(HollowKnightDir)\hollow_knight_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath Condition="'$(HollowKnightApiAssembly)' != ''">$(HollowKnightApiAssembly)</HintPath><Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="GenerateCharmDescriptions" BeforeTargets="CoreCompile">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Tools\Export-CharmDescriptions.ps1&quot; -InputFile &quot;$(MSBuildProjectDirectory)\Charm-Descriptions.yaml&quot; -OutputFile &quot;$(MSBuildProjectDirectory)\$(IntermediateOutputPath)CharmDescriptionText.g.cs&quot;" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)CharmDescriptionText.g.cs" />
+    </ItemGroup>
+  </Target>
+</Project>

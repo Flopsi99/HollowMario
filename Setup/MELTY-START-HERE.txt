@@ -1,0 +1,39 @@
+HOLLOW MARIO — MELTY EDITION
+
+Requires Windows Steam Hollow Knight 1.5.78.11833 and your own unmodified
+Super Mario 64 US ROM. Install and press Play in Melty.
+
+Hollow Mario uses the Hollow Knight community API only. The included setup
+checks your game, installs the supported official API if needed, applies the
+mod and starts your original game. Lumafly is not required. Existing community
+mods and settings are kept. No injection loader or separate profile is used.
+An unsupported game version stops setup; no Steam downgrade is performed.
+Each install/update migrates settings and removes recognized older Hollow Mario
+builds and private profiles, preserving ROMs, saves and other mods.
+
+The compiled Mario engine/model is NOT in this archive. Melty automatically
+prepares its pinned libsm64 dependency on your PC on first install. This may
+take a minute or more and is cached. That preparation uses public decompilation
+sources for the engine and model; textures, animation and audio still require
+your own ROM at runtime. The ROM and local output are never uploaded.
+
+Mario starts selected; M switches between Mario and the Knight.
+This remains a work-in-progress adaptation: not every charm combination
+and encounter has been verified. No multiplayer is included.
+
+Credits: Hollow Mario by Flopsi99; inspired by Mario-in-Hollow-Knight by
+Eliot Pacheco coto; libsm64 by jaburns and contributors;
+LibTessDotNet, Harmony/HarmonyX, MonoMod and Mono.Cecil
+contributors. Hollow Knight by Team Cherry; Super Mario 64 by Nintendo.
+Third-party notices are included. No endorsement or blanket rights clearance
+is implied. Test-only runs protect save writes and achievements.
+
+Debug keys are available in every build: F5 returns to the room entry,
+F7 toggles Mario hitboxes, F8 toggles boss HP, and F9 returns to the last bench.
+Hitboxes and HP start hidden; their hotkeys toggle only the current session.
+Community API users can rebind these in Options > Mods > Hollow Mario.
+The shared Debug Enabled setting must be on (its default) for these keys.
+
+This candidate must pass Melty's installed-release tests and media review
+before publication. Manual source/developer setup is a separate workflow;
+this archive is intended to be installed by Melty.

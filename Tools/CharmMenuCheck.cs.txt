@@ -1,0 +1,78 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using BepInEx.Logging;
+using HarmonyLib;
+
+class CharmMenuCheck
+{
+    const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
+    static void Require(bool ok, string why) { if (!ok) throw new Exception(why); }
+    static void Main(string[] args)
+    {
+        string game=Path.GetDirectoryName(Path.GetDirectoryName(TestEnvironment.Managed));
+        Run(args[0], game);
+    }
+    static void Run(string root, string game)
+    {
+        Assembly.LoadFrom(game + @"\hollow_knight_Data\Managed\Assembly-CSharp.dll");
+        Assembly companion = Assembly.LoadFrom(TestEnvironment.CompanionPath);
+        Type descriptions = companion.GetType("HollowMario.CharmDescriptions", true);
+        var find = descriptions.GetMethod("Find", All);
+        // The integration contract uses the Charms text-reader FSM, not its
+        // navigation/key-builder. Never bundle an extracted game asset as a fixture.
+        string actualReader = "Update Text";
+        Type nativeReader=AccessTools.TypeByName("HutongGames.PlayMaker.Actions.GetLanguageString");
+        foreach(string field in new[]{"convName","sheetName","storeValue"})
+            Require(nativeReader.GetField(field,All)!=null,"Native language reader interface: "+field);
+        Require(AccessTools.TypeByName("HutongGames.PlayMaker.Actions.SetTextMeshProText")!=null,"Native display action interface.");
+        var expected = new Dictionary<string,string>();
+        string[] lines = File.ReadAllLines(Path.Combine(root, "Charm-Descriptions.yaml"));
+        string key = null;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var match = Regex.Match(lines[i], @"^\s*description_key: (\S+)");
+            if (match.Success) key = match.Groups[1].Value;
+            var body = Regex.Match(lines[i], @"^( *)new_description: \|-$");
+            if (!body.Success) continue;
+            int indent = body.Groups[1].Length + 2;
+            var text = new List<string>();
+            while (i + 1 < lines.Length && (lines[i+1].Trim().Length == 0 || lines[i+1].TakeWhile(c => c == ' ').Count() >= indent))
+            {
+                string line = lines[++i];
+                text.Add(line.Trim().Length == 0 ? "" : line.Substring(indent));
+            }
+            while (text.Count > 0 && text[text.Count-1] == "") text.RemoveAt(text.Count-1);
+            if (text.Count > 0) expected.Add(key, string.Join("\n",text));
+        }
+        Require(expected.Count >= 18, "Creator-edited descriptions were found.");
+        foreach (var pair in expected)
+            Require(Equals(find.Invoke(null,new object[] { pair.Key,"UI","EN",true,actualReader,"Charms" }), pair.Value), "Wrong exact creator text: " + pair.Key);
+        string sample = expected.Keys.First();
+        object[][] fallbacks = {
+            new object[]{sample,"UI","EN",true,"UI Charms","Charms"},
+            new object[]{sample,"UI","EN",true,actualReader,"Inv"},
+            new object[]{sample,"UI","EN",false,actualReader,"Charms"},
+            new object[]{sample,"UI","DE",true,actualReader,"Charms"},
+            new object[]{sample,"Titles","EN",true,actualReader,"Charms"},
+            new object[]{"CHARM_NAME_37","UI","EN",true,actualReader,"Charms"},
+            new object[]{"CHARM_DESC_999","UI","EN",true,actualReader,"Charms"}
+        };
+        foreach(var inputs in fallbacks) Require(find.Invoke(null,inputs)==null,"Native fallback boundary changed.");
+        var logger = new ManualLogSource("charm-menu-check");
+        var warnings = new List<string>();
+        TestEnvironment.Messages.Clear();
+        var harmony = new Harmony("local.actual-charm-reader-check");
+        descriptions.GetMethod("Arm",All).Invoke(null,new object[]{harmony,logger});
+        Type action = AccessTools.TypeByName("HutongGames.PlayMaker.Actions.GetLanguageString");
+        MethodInfo enter = action.GetMethod("OnEnter",All);
+        Require(!TestEnvironment.Messages.Any(m=>m.Contains("charm-menu-check")&&m.Contains("failed")),"Description hook failed.");
+        Require(Harmony.GetPatchInfo(enter).Postfixes.Any(p=>p.owner==harmony.Id && p.PatchMethod.DeclaringType==descriptions),"Actual language reader postfix not installed.");
+        harmony.UnpatchSelf();
+        Console.WriteLine("PASS native language/display interfaces, all 18 creator texts verbatim, seven fallback boundaries and Harmony registration. The Charms/Update Text scope is a project contract, not a live asset/menu test. No game was launched.");
+    }
+}

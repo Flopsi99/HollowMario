@@ -1,0 +1,276 @@
+// Actual production shade/gate classes and installed Harmony, isolated host/render/geometry
+// stand-ins. Verifies state/timing/lifecycle, not live Unity rendering or SM64 wall contact.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using BepInEx.Logging;
+using HarmonyLib;
+using HollowMario;
+using UnityEngine;
+
+static class Program
+{
+    static void Check(bool value,string message){if(!value)throw new Exception(message);}
+    static void Near(float value,float expected,string message)=>Check(Math.Abs(value-expected)<.0001f,message);
+    static void Main()
+    {
+        var harmony=new Harmony("local.shade-long-jump-check");
+        var controller=new Controller();var follow=new KnightResetFollow(controller);
+        Plugin.Instance.knightFollow=follow;
+        var gate=new ShadowGateColliderControl();gate.gameObject.layer=13;
+        gate.transform.position=new Vector3(0,4,-3);
+        gate.disableCollider=new Collider2D(gate.gameObject){size=new Vector3(.2f,12,0)};
+        var world=new MarioHollow.WorldCollision();
+        controller.hero.transform.position=new Vector3(-2,4,12);
+        var body=new Collider2D(controller.hero.gameObject){size=new Vector3(.8f,1.8f,0)};
+        var originalTint=new MaterialPropertyBlock();originalTint.SetColor("_Color",new Color(.5f,.3f,.2f,1));
+        var atlas=new Texture2D();originalTint.SetTexture("_MainTex",atlas);
+        controller.Renderer.MeshRenderer.SetPropertyBlock(originalTint);
+        try
+        {
+            ShadeGateCollision.Arm(harmony,typeof(Native),Plugin.Instance.Log);
+            ShadeLongJump.Arm(typeof(Controller),Plugin.Instance.Log);
+            gate.Start();world.Tick();
+            Check(Native.Ids.Count==1,"native gate Start must register its layer-13 solid without any scene scan");
+            controller.hero.playerData.hasDash=true;NativeMovementGates.Signal(0x03000888u);
+            Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing&&gate.disableCollider.enabled,"ordinary cloak cannot grant shade protection or open gate");
+            controller.hero.playerData.hasShadowDash=true;NativeMovementGates.Signal(0x03000888u);
+            Check(ShadeLongJump.Active&&controller.hero.cState.shadowDashing&&!controller.hero.cState.dashing,"live shade unlock grants only native shade flag");
+            Check(Native.Ids.Count==0&&!gate.disableCollider.enabled,"launch must remove gate geometry immediately, before the native solver continues");
+            Near(controller.hero.shadowDashTimer,2f,"Mario's native recharge field starts at two seconds on launch");
+            Check(controller.hero.RechargeBrain.Resets==0&&!controller.hero.shadowRechargePrefab.activeInHierarchy,"native recharge/audio routine waits for the final native-length window");
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,0,"temporary material block makes Mario black");
+            Check(body.enabled&&controller.Horizontal==42&&controller.Vertical==24,"shade cannot disable body or alter long-jump velocity");
+            gate.FixedUpdate();Check(gate.OriginalSteps==0&&!gate.disableCollider.enabled,"Mario gate branch uses phase rather than native dashing flag");
+            ShadeLongJump.Tick(controller,follow,0);Near(controller.hero.shadowDashTimer,2f,"pause does not consume recharge");
+            ShadeLongJump.Tick(controller,follow,.05f);NativeMovementGates.Signal(0x03000888u);
+            Near(controller.hero.shadowDashTimer,1.95f,"same phase cannot repeatedly consume or restart charge");
+            Check(controller.hero.RechargeBrain.Resets==0,"same phase cannot start its native recharge sounds early");
+            controller.hero.transform.position=new Vector3(1.5f,4,12);
+            ShadeLongJump.Tick(controller,follow,.11f);world.Tick();
+            Check(ShadeLongJump.Active&&controller.hero.cState.shadowDashing&&Native.Ids.Count==0,"protection remains after the old .15s deadline");
+            ShadeLongJump.Tick(controller,follow,.15f);world.Tick();
+            Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing&&Native.Ids.Count==1,"phase expires while long jump continues and gate becomes solid");
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.5f,"previous material properties restore exactly");
+            Check(AutoMove.Shifts==0,"completed crossing must not be pulled back");
+            NativeMovementGates.Signal(0x03000888u);Check(!ShadeLongJump.Active,"unready long jump remains ordinary");
+            ShadeLongJump.Tick(controller,follow,.19f);Near(controller.hero.shadowDashTimer,1.5f,"recharge begins at launch and reaches its final native-length window after half a second");
+            Check(controller.hero.RechargeBrain.Resets==1&&controller.hero.shadowRechargePrefab.activeInHierarchy,"original recharge/audio routine starts once at the delayed window");
+            ShadeLongJump.Tick(controller,follow,1.51f);Near(controller.hero.shadowDashTimer,0,"native charge refills two seconds from launch without a landing or another action");
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.55f,"recharge crossing starts a subdued mid-gray cue");
+            Check(ReferenceEquals(controller.Renderer.MeshRenderer.Block.GetTexture("_MainTex"),Texture2D.whiteTexture),"cue must be actual neutral gray rather than a darker coloured atlas");
+            Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing,"ready cue cannot grant protection");
+            NativeMovementGates.Signal(0x03000880u);ShadeLongJump.Tick(controller,follow,0);
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.55f,"ordinary action changes and pause cannot cancel the ready cue");
+            ShadeLongJump.Tick(controller,follow,.1f);Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.55f,"one readable cue lasts beyond a single frame");
+            ShadeLongJump.Tick(controller,follow,.13f);
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.5f,"ready cue restores original tint after .22 seconds");
+            Check(ReferenceEquals(controller.Renderer.MeshRenderer.Block.GetTexture("_MainTex"),atlas),"ready cue restores original atlas property");
+            ShadeLongJump.Tick(controller,follow,.5f);
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.5f,"remaining ready cannot repeatedly flash");
+            Check(controller.hero.RechargeBrain.Resets==1,"recharge crossing cannot duplicate manually timed audio");
+            Console.WriteLine("PASS one muted neutral-gray .22s readiness cue on real cooldown crossing only; no protection/repeat, pause/action-change behavior, atlas/tint restoration and one native recharge/audio routine per spend.");
+            Console.WriteLine("PASS before/live-after Shade Cloak, native flag/duration/recharge, immediate gate opening, pause, no repeated spend, ordinary cooldown jumps, tint restoration and unchanged body/momentum.");
+
+            controller.hero.transform.position=new Vector3(-2,4,12);NativeMovementGates.Signal(0x03000888u);
+            controller.hero.transform.position=new Vector3(.05f,4,12);
+            ShadeLongJump.Tick(controller,follow,.31f);world.Tick();
+            Check(controller.hero.transform.position.x<-.62f&&AutoMove.Shifts==1&&Native.Ids.Count==1,"expiry inside gate returns to entry face using XY despite unrelated render Z");
+            Check(controller.Horizontal==42&&controller.Vertical==24,"gate recovery must preserve momentum");
+            controller.hero.shadowDashTimer=0;NativeMovementGates.Signal(0x03000888u);
+            NativeMovementGates.Signal(0x03000880u);Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing,"changing move cancels protection immediately");
+            float cooldown=controller.hero.shadowDashTimer;
+            controller.hero.enabled=true;ShadeLongJump.Tick(controller,follow,.2f);
+            Near(controller.hero.shadowDashTimer,cooldown,"enabled Knight owns its timer, with no double decrement");
+            controller.Alive=false;controller.hero.cState.shadowDashing=true;ShadeLongJump.Tick(controller,follow,.2f);
+            Check(controller.hero.cState.shadowDashing,"Mario cleanup cannot clear a subsequent native Knight shade dash");
+            gate.FixedUpdate();Check(gate.OriginalSteps==1,"Knight mode retains original native gate routine");
+            Console.WriteLine("PASS interrupted/expired shade cleanup, safe partial crossing, momentum preservation, native Knight timer ownership and original gate behavior.");
+
+            controller.Alive=true;controller.hero.enabled=false;controller.hero.cState.shadowDashing=false;
+            world.Tick();int before=Native.Created;world.Tick();Check(Native.Created==before,"stationary gate has no repeated geometry rebuild");
+            MarioHollow.MarioMath.Origin=new Vector2(5,2);world.Tick();Check(Native.Ids.Count==1&&Native.Created==before+1,"origin recenter replaces owned gate copy without leaking IDs");
+            controller.hero.shadowDashTimer=0;NativeMovementGates.Signal(0x03000888u);
+            controller.hero.playerData.hasShadowDash=false;ShadeLongJump.Tick(controller,follow,.01f);
+            Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing,"save/unlock change cannot retain shade state");
+            controller.hero.shadowDashTimer=.01f;ShadeLongJump.Tick(controller,follow,.02f);
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,.5f,"lost Shade Cloak cannot show a readiness cue");
+            controller.hero.playerData.hasShadowDash=true;controller.hero.shadowDashTimer=.01f;
+            ShadeLongJump.Tick(controller,follow,.02f);
+            NativeMovementGates.Signal(0x03000888u);
+            Near(controller.Renderer.MeshRenderer.Block.GetColor("_Color").r,0,"new protected launch replaces a pending gray cue with black");
+            Check(ReferenceEquals(controller.Renderer.MeshRenderer.Block.GetTexture("_MainTex"),atlas),"new shade phase cannot inherit gray cue's white texture");
+            ShadeLongJump.Cancel();
+            controller.hero.DASH_TIME=.25f;controller.hero.shadowDashTimer=0;
+            NativeMovementGates.Signal(0x03000888u);
+            Near(controller.hero.shadowDashTimer,2f,"Mario's two-second recharge leaves the live native constant untouched");
+            ShadeLongJump.Tick(controller,follow,.25f);
+            Check(ShadeLongJump.Active,"live .25s Knight duration no longer ends Mario's protection");
+            ShadeLongJump.Tick(controller,follow,.24f);
+            Check(ShadeLongJump.Active,"protection survives to .49s");
+            ShadeLongJump.Tick(controller,follow,.011f);
+            Check(!ShadeLongJump.Active&&!controller.hero.cState.shadowDashing,"protection ends at .5s");
+            Near(controller.hero.DASH_TIME,.25f,"Knight dash duration constant remains unchanged");
+            Near(controller.hero.SHADOW_DASH_COOLDOWN,1.5f,"Knight recharge constant remains unchanged");
+            // Two seconds now reaches the final native-length audio window as
+            // protection expires. Spend a fresh charge before testing a handover
+            // that occurs before that window; don't move a spent timer backwards.
+            controller.hero.shadowDashTimer=0;NativeMovementGates.Signal(0x03000888u);
+            ShadeLongJump.Cancel();
+            int audioBefore=controller.hero.RechargeBrain.Resets;
+            controller.Alive=false;controller.hero.enabled=true;
+            // Native Knight Update owns/decrements the very same timer during handover.
+            controller.hero.shadowDashTimer=1.51f;ShadeLongJump.Tick(controller,follow,.2f);
+            Near(controller.hero.shadowDashTimer,1.51f,"handover cannot double-decrement extended recharge");
+            Check(controller.hero.RechargeBrain.Resets==audioBefore,"handover audio cannot start before its native-length window");
+            controller.hero.shadowDashTimer=1.5f;ShadeLongJump.Tick(controller,follow,.2f);
+            Check(controller.hero.RechargeBrain.Resets==audioBefore+1,"pending native recharge/audio survives handover and starts once");
+            ShadeLongJump.Tick(controller,follow,.2f);
+            Check(controller.hero.RechargeBrain.Resets==audioBefore+1,"handover cannot replay recharge/audio");
+            controller.Alive=true;controller.hero.enabled=false;
+            var cutoutMask=new Texture2D();MarioAppearance.ReadyTexture=source=>ReferenceEquals(source,atlas)?cutoutMask:null;
+            controller.hero.shadowDashTimer=.01f;ShadeLongJump.Tick(controller,follow,.02f);
+            Check(ReferenceEquals(controller.Renderer.MeshRenderer.Block.GetTexture("_MainTex"),cutoutMask),"gray cue must use supplied alpha-preserving mask rather than opaque white");
+            ShadeLongJump.Tick(controller,follow,.23f);
+            Check(ReferenceEquals(controller.Renderer.MeshRenderer.Block.GetTexture("_MainTex"),atlas),"cutout-ready cue restores original atlas");
+            MarioAppearance.ReadyTexture=null;
+            Console.WriteLine("PASS actual .25s Knight duration remains .5s for Mario, with two-second recharge from launch; native constants unchanged; native audio survives handover with no duplicate countdown or restart.");
+            ShadeGateCollision.Forget();Check(Native.Ids.Count==0&&gate.disableCollider.enabled,"scene teardown removes owned geometry and restores native collider");
+            Console.WriteLine("PASS no steady rebuilds, origin/world cleanup, live unlock removal and gate ownership. No game launched.");
+        }
+        finally{ShadeLongJump.Dispose();MarioAppearance.ReadyTexture=null;ShadeGateCollision.Forget();harmony.UnpatchSelf();}
+    }
+}
+public class ShadowGateColliderControl:Behaviour
+{
+    public Collider2D disableCollider;public int OriginalSteps;
+    [MethodImpl(MethodImplOptions.NoInlining)]public void Start(){}
+    [MethodImpl(MethodImplOptions.NoInlining)]public void FixedUpdate(){OriginalSteps++;}
+    [MethodImpl(MethodImplOptions.NoInlining)]public void OnDestroy(){}
+}
+public class PlayMakerFSM:Component
+{
+    public PlayMakerFSM(GameObject go):base(go){}
+    public string FsmName=>"Recharge Effect";public int Resets;
+    public void SendEvent(string name){if(name!="RESET")throw new Exception("Unexpected native recharge event");Resets++;}
+}
+public static partial class Native
+{
+    public static HashSet<uint> Ids=new HashSet<uint>();public static int Created;
+    public static void sm64_surface_object_delete(uint id){if(!Ids.Remove(id))throw new Exception("duplicate native delete");}
+}
+namespace MarioHollow
+{
+    public static class MarioMath{public static Vector2 Origin;}
+    public class WorldCollision
+    {
+        public static int Objects;
+        class Tracked{public uint Id;}
+        private Tracked Create(Collider2D c){uint id=(uint)++Native.Created;Native.Ids.Add(id);return new Tracked{Id=id};}
+        [MethodImpl(MethodImplOptions.NoInlining)]public void Tick(){}
+    }
+}
+namespace HollowMario
+{
+    // Metal reflection is outside this shade/timer fixture. Fail if a new
+    // dependency accidentally routes its scenarios into that unmodeled feature.
+    static class MarioMetalTexture
+    { internal static void Refresh(object controller)=>throw new InvalidOperationException("Metal reflection is not modeled by this policy fixture."); }
+    partial class Controller
+    {
+        public Hero hero=new Hero();public View Renderer=new View();public bool Alive=true;
+        public uint Action=0x03000888u;public float Horizontal=42,Vertical=24;
+    }
+    partial class Hero:Behaviour
+    {
+        public Data playerData=new Data();public Flags cState=new Flags();public float shadowDashTimer,DASH_TIME=.15f,SHADOW_DASH_COOLDOWN=1.5f;
+        public AudioClip shadowDashClip=new AudioClip();public GameObject shadowRechargePrefab=new GameObject();public PlayMakerFSM RechargeBrain;
+        public Hero(){enabled=false;shadowRechargePrefab.SetActive(false);RechargeBrain=new PlayMakerFSM(shadowRechargePrefab);}
+    }
+    partial class Data{public bool hasDash,hasShadowDash,hasWalljump;}
+    class Flags{public bool shadowDashing,dashing;}
+    class View{public MeshRenderer MeshRenderer=new MeshRenderer();}
+    class Plugin{public static Plugin Instance=new Plugin();public KnightResetFollow knightFollow;public ManualLogSource Log=new ManualLogSource("Shade fixture");}
+    partial class KnightResetFollow
+    {
+        Controller current;public KnightResetFollow(Controller c){current=c;}
+        public object Controller()=>current;public object Hero(object c)=>((Controller)c).hero;
+        public bool MarioAlive(object c)=>c is Controller item&&item.Alive;
+        public uint Action(object c)=>((Controller)c).Action;
+        public Transform HeroTransform(object c)=>((Controller)c).hero.transform;
+        public Vector3? Ground(object c)=>((Controller)c).hero.transform.position;
+    }
+    static class NativeMovementGates{internal static event Action<uint> ActionInitialized;public static void Signal(uint action){Plugin.Instance.knightFollow.Controller();ActionInitialized?.Invoke(action);}}
+    static class AutoMove
+    {
+        public static int Shifts;public static void Prepare(object c){}
+        public static void Shift(object c,float x,float y){Shifts++;}
+    }
+}
+namespace UnityEngine
+{
+    public class GameObject
+    {
+        public List<Component> Parts=new List<Component>();public Transform transform;public int layer;public bool activeInHierarchy=true;
+        public GameObject(){transform=new Transform(this);}
+        public void SetActive(bool value){activeInHierarchy=value;}
+        public Component[] GetComponents(Type type)=>Parts.Where(type.IsInstanceOfType).ToArray();
+        public Component GetComponentInParent(Type type)=>Parts.FirstOrDefault(type.IsInstanceOfType);
+    }
+    public class Component
+    {
+        public GameObject gameObject;public Transform transform=>gameObject.transform;
+        public Component(){gameObject=new GameObject();gameObject.Parts.Add(this);}
+        public Component(GameObject go){gameObject=go;go.Parts.Add(this);}
+        public T GetComponent<T>()where T:class=>gameObject.Parts.OfType<T>().FirstOrDefault();
+    }
+    public class Behaviour:Component{public bool enabled=true;public bool isActiveAndEnabled=>enabled&&gameObject.activeInHierarchy;}
+    public class Transform:Component{public Vector3 position;public Transform(GameObject go):base(go){}}
+    public class Collider2D:Behaviour
+    {
+        public Vector3 size;public bool isTrigger;public Collider2D(GameObject go){gameObject.Parts.Remove(this);gameObject=go;go.Parts.Add(this);}
+        public Bounds bounds=>enabled?new Bounds(transform.position,size):new Bounds();
+    }
+    public class Rigidbody2D:Component{public Vector2 position;}
+    public struct Vector2
+    {
+        public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}
+        public static bool operator ==(Vector2 a,Vector2 b)=>a.x==b.x&&a.y==b.y;
+        public static bool operator !=(Vector2 a,Vector2 b)=>!(a==b);
+        public override bool Equals(object o)=>o is Vector2 v&&this==v;public override int GetHashCode()=>x.GetHashCode()^y.GetHashCode();
+    }
+    public struct Vector3
+    {
+        public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+        public static Vector3 operator +(Vector3 a,Vector3 b)=>new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
+        public static Vector3 operator -(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+    }
+    public struct Bounds
+    {
+        public Vector3 center,size;public Bounds(Vector3 c,Vector3 s){center=c;size=s;}
+        public Vector3 extents{get=>new Vector3(size.x/2,size.y/2,size.z/2);set=>size=new Vector3(value.x*2,value.y*2,value.z*2);}
+        public Vector3 min=>center-extents;public Vector3 max=>center+extents;
+    }
+    public static class Mathf{public static float Max(float a,float b)=>Math.Max(a,b);}
+    public struct Color{public float r,g,b,a;public Color(float r,float g,float b,float a){this.r=r;this.g=g;this.b=b;this.a=a;}public static Color black=>new Color(0,0,0,1);public static Color white=>new Color(1,1,1,1);}
+    public class MaterialPropertyBlock
+    {
+        public Dictionary<string,Color> Colors=new Dictionary<string,Color>();public void SetColor(string k,Color v){Colors[k]=v;}
+        public Dictionary<string,Texture> Textures=new Dictionary<string,Texture>();public void SetTexture(string k,Texture t){Textures[k]=t;}
+        public Texture GetTexture(string k)=>Textures.TryGetValue(k,out Texture t)?t:null;
+        public Color GetColor(string k)=>Colors.TryGetValue(k,out Color c)?c:new Color();public void Copy(MaterialPropertyBlock other){Colors=new Dictionary<string,Color>(other.Colors);Textures=new Dictionary<string,Texture>(other.Textures);}
+    }
+    public class MeshRenderer:Component
+    {
+        public Material sharedMaterial=new Material();
+        public MaterialPropertyBlock Block=new MaterialPropertyBlock();
+        public void GetPropertyBlock(MaterialPropertyBlock target)=>target.Copy(Block);
+        public void SetPropertyBlock(MaterialPropertyBlock source)=>Block.Copy(source);
+    }
+    public class AudioClip{}
+    public class Texture{}
+    public class Texture2D:Texture{public static readonly Texture2D whiteTexture=new Texture2D();}
+    public class Material{public Texture mainTexture=new Texture2D();public Color GetColor(string name)=>Color.white;}
+    public class AudioSource:Component{public void PlayOneShot(AudioClip clip){}}
+}

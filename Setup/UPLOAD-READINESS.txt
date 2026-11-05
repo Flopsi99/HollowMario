@@ -1,0 +1,23 @@
+HOLLOW MARIO - RELEASE PREPARATION STILL REQUIRED
+
+The current build uses the Hollow Knight community API only. The manual and
+Melty builders package the same API payload. Setup installs official API v77
+when the supported game does not already have it. There is no injection route,
+dispatcher or new separate-game profile. Legacy settings migration/removal stays.
+
+Public downloads exclude sm64.dll, ROMs, game files, personal settings and saves.
+Manual setup prepares the runtime locally; Melty declares its prepared libsm64
+runtime and own-ROM handoff. The recipe remains a draft until platform checks pass.
+
+Before upload/publication:
+- Rebuild the candidate from the current source using the appropriate builder.
+- Validate the current recipe and one-click installation through Melty.
+- Test the installed release with Melty's prepared runtime and own-ROM handoff.
+- Verify the recent presentation and gameplay changes in the game.
+- Retain the listing's credits, license, remix choice and real gameplay media.
+
+Offline build, dependency, setup and gameplay checks do not replace an installed
+platform test or certify compatibility with every other mod. Setup does not
+automatically downgrade Hollow Knight or select a Steam branch.
+See MAINTAINING.md for the supported workflow and verification limits.
+Nothing is uploaded or published by these builders.

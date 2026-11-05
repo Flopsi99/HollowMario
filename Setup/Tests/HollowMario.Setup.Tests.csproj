@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Core\HollowMario.Setup.Core.csproj" /><ProjectReference Include="..\Launcher\HollowMario.Setup.csproj" /></ItemGroup>
+</Project>

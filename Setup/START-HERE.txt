@@ -1,0 +1,43 @@
+HOLLOW MARIO
+
+Requires your installed Windows Steam copy of Hollow Knight 1.5.78.11833
+and your own unmodified Super Mario 64 US ROM.
+
+Extract this whole download, then open HollowMario-Setup.exe.
+Setup uses the Hollow Knight community API. If it is missing, setup obtains
+the supported API from its official release. The Lumafly application is not
+required. Later launches reuse your game and ROM locations and apply updates
+automatically. Start with --choose to open setup again.
+
+If Melty already supplied your ROM, setup uses it. Otherwise choose your own
+file once. The location is remembered. Your ROM and extracted assets are never
+uploaded, and the download does not contain a ROM or Hollow Knight game files.
+The Mario engine and model are not bundled either. First setup downloads
+verified build tools and pinned public source, then prepares that engine on
+your PC. This needs internet access and can take a few minutes; later runs
+reuse the local result. Textures, animation and audio come from your own ROM.
+
+For a manual community installation, copy the contents of payloads/api into
+hollow_knight_Data/Managed/Mods/HollowMario. The included ROM chooser opens if needed.
+Each install/update removes recognized older Hollow Mario injection and API
+builds and old private profiles after migrating settings. Your current settings,
+ROMs, saves and other mods are preserved.
+
+To uninstall, open the manual setup and choose Remove Hollow Mario. It checks
+current and older installations for the selected game, including disabled and old Floor
+Fix copies, and removes Hollow Mario's settings and cached downloads. No ROM is
+needed for removal. Your original game, saves, ROMs, shared mod loaders and other
+mods stay in place. A separate profile used by other mods is kept for them.
+
+Debug keys are available in every build: F5 returns to the room entry,
+F7 toggles Mario hitboxes, F8 toggles boss HP, and F9 returns to the last bench.
+Hitboxes and HP start hidden; their hotkeys toggle only the current session.
+Community API users can rebind these in Options > Mods > Hollow Mario.
+The shared Debug Enabled setting must be on (its default) for these keys.
+
+This is a preview build. Installer and focused code checks passed; complete
+gameplay compatibility with every other mod is not certified.
+
+Credits: inspired by Mario-in-Hollow-Knight by Eliot Pacheco coto; libsm64 by
+jaburns and contributors; Hollow Knight
+by Team Cherry; Super Mario 64 by Nintendo. Third-party terms are included in LICENSES. No endorsement is implied.

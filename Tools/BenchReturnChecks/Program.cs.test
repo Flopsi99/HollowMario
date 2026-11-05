@@ -1,0 +1,120 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using HollowMario;
+
+class Data
+{
+    public string respawnScene="BenchRoom",respawnMarkerName="Bench Marker";
+    public int health=7,geo=321,permadeathMode=2;
+}
+class FakeGame
+{
+    public enum Visual { Default }
+    public class SceneLoadInfo
+    {
+        public string SceneName,EntryGateName;
+        public bool PreventCameraFadeOut,WaitForSceneTransitionCameraFade,AlwaysUnloadUnusedAssets,IsFirstLevelForPlayer;
+        public Visual Visualization;
+    }
+    public Data playerData=new Data();
+    public int gameState=4,Calls,Resumes;
+    public bool isLoading;
+    public bool IsInSceneTransition{get;set;}
+    public bool RespawningHero{get;set;}
+    public object sceneLoad;
+    public string Scene="Room";
+    public SceneLoadInfo Last;
+    public bool Throw,Reject,UnpauseBlocked;
+    public IEnumerator PauseGameToggle()
+    {
+        Resumes++;yield return null;
+        if(!UnpauseBlocked)gameState=4;
+    }
+    public string GetSceneNameString()=>Scene;
+    public void BeginSceneTransition(SceneLoadInfo info)
+    {
+        if(Throw)throw new InvalidOperationException("Native load rejected.");
+        if(Reject)return;
+        if(sceneLoad!=null)throw new Exception("Overlapping scene load.");
+        if(!RespawningHero)throw new Exception("Native bench entry was not selected.");
+        Last=info;Calls++;isLoading=true;IsInSceneTransition=true;sceneLoad=new object();gameState=2;
+    }
+    public void Finish(string scene=null)
+    {Scene=scene??Last?.SceneName??Scene;isLoading=false;IsInSceneTransition=false;sceneLoad=null;gameState=4;RespawningHero=false;}
+}
+class Context
+{
+    public float Now;
+    public bool Allowed=true;
+    public int Prepared;
+    public List<string> Notes=new List<string>(),Errors=new List<string>();
+    public BenchReturn Flow=new BenchReturn();
+    public FakeGame Game=new FakeGame();
+    public IEnumerator Begin()=>Flow.Request(Game,()=>Now,()=>Allowed,()=>Prepared++,
+        (text,error)=>{Notes.Add(text);if(error)Errors.Add(text);});
+}
+class Program
+{
+    static void Check(bool value,string why){if(!value)throw new Exception(why);}
+    static void Main()
+    {
+        foreach(bool sameRoom in new[]{false,true})
+        {
+            var c=new Context();if(sameRoom)c.Game.Scene=c.Game.playerData.respawnScene;
+            var run=c.Begin();Check(c.Flow.Running&&c.Begin()==null,"Debounce before first coroutine step.");
+            Check(run.MoveNext()&&c.Game.Calls==1&&c.Prepared==1,"Start exactly one native bench return.");
+            var info=c.Game.Last;
+            Check(info.SceneName=="BenchRoom"&&info.EntryGateName==""&&!info.PreventCameraFadeOut&&info.WaitForSceneTransitionCameraFade,"Use saved scene and normal live fade, not post-death fade suppression.");
+            Check(info.AlwaysUnloadUnusedAssets&&!info.IsFirstLevelForPlayer&&info.Visualization==FakeGame.Visual.Default,"Retain ordinary native respawn load settings.");
+            Check(c.Begin()==null&&run.MoveNext()&&c.Game.Calls==1,"Held/repeated request cannot enqueue overlapping loads.");
+            c.Game.Finish();Check(!run.MoveNext()&&!c.Flow.Running&&c.Errors.Count==0,"Confirm native entry, including a same-room bench reload.");
+            Check(c.Game.playerData.health==7&&c.Game.playerData.geo==321&&c.Game.playerData.permadeathMode==2,"Coordinator must not edit health, currency, save/death state.");
+        }
+        {
+            var c=new Context();c.Game.gameState=5;var run=c.Begin();
+            Check(run.MoveNext()&&c.Game.Resumes==1&&c.Game.Calls==0,"Finish native unpause before starting a load.");
+            Check(run.MoveNext()&&c.Game.Calls==1&&c.Prepared==1,"Paused return resumes and then loads exactly once.");
+            c.Game.Finish();Check(!run.MoveNext()&&!c.Flow.Running,"Paused request completes.");
+        }
+        {
+            var c=new Context();c.Game.gameState=2;c.Game.isLoading=true;c.Game.sceneLoad=new object();
+            var run=c.Begin();Check(run.MoveNext()&&c.Prepared==0&&c.Game.Calls==0&&!c.Game.RespawningHero,"Existing load must be left untouched while queued.");
+            c.Game.playerData=new Data{respawnScene="UpdatedBench"};c.Game.Finish("OtherRoom");
+            Check(run.MoveNext()&&c.Game.Last.SceneName=="UpdatedBench","Resolve the current GameManager's actual save data after waiting.");
+            c.Game.Finish();Check(!run.MoveNext()&&c.Errors.Count==0,"Queued return completes.");
+        }
+        foreach(int state in new[]{2,3,6,8})
+        {
+            var c=new Context();c.Game.gameState=state;var run=c.Begin();Check(run.MoveNext(),"Wait during loading/entry/exit/primer.");
+            c.Now=16;Check(!run.MoveNext()&&!c.Flow.Running&&c.Game.Calls==0&&c.Errors.Count==1,"Unscaled queue timeout without changing respawn flags.");
+        }
+        foreach(int state in new[]{0,1})
+        {var c=new Context();c.Game.gameState=state;var run=c.Begin();Check(!run.MoveNext()&&!c.Flow.Running&&c.Prepared==0,"Main menu/inactive must not trigger a bench load.");}
+        foreach(bool scene in new[]{false,true})
+        {var c=new Context();if(scene)c.Game.playerData.respawnScene="";else c.Game.playerData.respawnMarkerName="";var run=c.Begin();Check(!run.MoveNext()&&c.Prepared==0&&c.Game.Calls==0&&c.Errors.Count==1,"No saved checkpoint must report failure without a misleading hazard fallback.");}
+        foreach(bool reject in new[]{false,true})
+        {
+            var c=new Context();c.Game.Throw=!reject;c.Game.Reject=reject;var run=c.Begin();
+            Check(!run.MoveNext()&&!c.Flow.Running&&!c.Game.RespawningHero&&c.Errors.Count==1,"Rejected/throwing load restores the previous respawn flag and releases debounce.");
+            c.Game.Throw=c.Game.Reject=false;run=c.Begin();Check(run.MoveNext()&&c.Game.Calls==1,"Retry after rejection works.");c.Game.Finish();Check(!run.MoveNext(),"Retry confirms completion.");
+        }
+        {
+            var c=new Context();c.Game.gameState=5;c.Game.UnpauseBlocked=true;var run=c.Begin();Check(run.MoveNext()&&!run.MoveNext()&&c.Game.Calls==0&&c.Errors.Count==1&&!c.Flow.Running,"Unpause rejection is explicit and cannot begin a frozen load.");
+        }
+        {
+            var c=new Context();var run=c.Begin();Check(run.MoveNext(),"Load begins.");c.Now=61;
+            Check(!run.MoveNext()&&!c.Flow.Running&&c.Game.isLoading&&c.Game.RespawningHero&&c.Errors.Count==1,"Timeout reports the unfinished load without cancelling it or corrupting its flags.");
+        }
+        {
+            var c=new Context();c.Game.isLoading=true;var run=c.Begin();Check(run.MoveNext(),"Queued.");c.Allowed=false;
+            Check(!run.MoveNext()&&!c.Flow.Running&&c.Game.Calls==0,"Disabling debug before dispatch cancels only our queued request.");
+        }
+        {
+            var c=new Context();var run=c.Begin();c.Flow.Cancel(run);Check(!c.Flow.Running,"Failed coroutine start releases the pending latch.");
+            run=c.Begin();Check(run.MoveNext(),"Another request is possible.");c.Flow.Cancel(run);
+            Check(!c.Flow.Running&&c.Game.isLoading&&c.Game.RespawningHero,"Disposing monitoring leaves the game's accepted load alone.");
+        }
+        Console.WriteLine("PASS native-shaped bench flow: unpause, busy queue, duplicate keys, live fade, current saved data, same-room entry, missing checkpoint, load rejection/rollback/retry, config gate and unscaled timeouts. No game launched.");
+    }
+}

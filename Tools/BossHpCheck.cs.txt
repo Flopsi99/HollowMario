@@ -1,0 +1,30 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
+using BepInEx.Configuration;
+using BepInEx.Logging;
+using HarmonyLib;
+class BossHpCheck
+{
+ const BindingFlags All=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+ static void Require(bool value,string why){if(!value)throw new Exception(why);}
+ static void Main(string[] args){
+  var game=Assembly.LoadFrom(Path.Combine(TestEnvironment.Managed,"Assembly-CSharp.dll"));var mod=Assembly.LoadFrom(TestEnvironment.CompanionPath);
+  var hud=mod.GetType("HollowMario.BossHpHud",true);var settings=mod.GetType("HollowMario.DebugSettings",true);var health=game.GetType("HealthManager",true);
+  string path=Path.Combine(Path.GetTempPath(),"hollowmario-hp-check-"+Guid.NewGuid().ToString("N")+".cfg");var cfg=new ConfigFile(path);var h=new Harmony("hollowmario.hp.read-check");
+  try{
+   settings.GetMethod("Bind",All).Invoke(null,new object[]{cfg});Require(!(bool)hud.GetProperty("Enabled",All).GetValue(null,null),"Health label defaults off in shipped builds");
+   hud.GetMethod("Arm",All).Invoke(null,new object[]{h,new ManualLogSource("HP check")});
+   foreach(string name in new[]{"OnEnable","Start"})Require(Harmony.GetPatchInfo(health.GetMethod(name,All)).Postfixes.Any(p=>p.owner==h.Id),"Health lifecycle hook "+name);
+   Require(Harmony.GetPatchInfo(game.GetType("BossSceneController").GetMethod("ReportHealth",All)).Postfixes.Any(p=>p.owner==h.Id),"Boss health reporting hook");
+   object target=FormatterServices.GetUninitializedObject(health);var hp=health.GetField("hp",All);var dead=health.GetField("isDead",All);var read=hud.GetMethod("ReadHealth",All);
+   foreach(int value in new[]{1250,1091,1400,17,0,-5}){hp.SetValue(target,value);dead.SetValue(target,false);Require((int)read.Invoke(null,new[]{target})==Math.Max(0,value)&&(int)hp.GetValue(target)==value,"Read actual HP/healing without writing it");}
+   hp.SetValue(target,500);dead.SetValue(target,true);Require((int)read.Invoke(null,new[]{target})==0&&(int)hp.GetValue(target)==500,"Hide dead enemy without modifying native HP");
+   cfg.Bind("Debug","ShowBossHp",false,"").Value=true;Require((bool)hud.GetProperty("Enabled",All).GetValue(null,null),"Configured label enabled");
+   cfg.Bind("Debug","Enabled",true,"").Value=false;Require(!(bool)hud.GetProperty("Enabled",All).GetValue(null,null),"Master switch disables label");
+   Console.WriteLine("PASS live native HP/healing/death reads with no HP writes, hidden defaults, master switch and real lifecycle hooks. GUI is not rendered.");
+  }finally{h.UnpatchSelf();hud.GetMethod("Clear",All).Invoke(null,null);if(File.Exists(path))File.Delete(path);}
+ }
+}

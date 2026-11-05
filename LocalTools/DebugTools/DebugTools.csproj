@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion>
+    <AssemblyName>HollowMario.DebugTools</AssemblyName>
+    <HollowKnightDir>E:\SteamLibrary\steamapps\common\Hollow Knight</HollowKnightDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="PlayMaker"><HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\PlayMaker.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,438 @@
+[
+  {
+    "name": "ArrivalPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/ArrivalPoseChecks.cs"
+  },
+  {
+    "name": "BenchAdjustChecks",
+    "kind": "native",
+    "source": ".artifacts/bench-adjustment/BenchAdjustChecks.cs"
+  },
+  {
+    "name": "BenchExitChecks",
+    "kind": "native",
+    "source": ".artifacts/bench-exit/BenchExitChecks.cs"
+  },
+  {
+    "name": "BenchRenderChecks",
+    "kind": "native",
+    "source": ".artifacts/bench-render-fix/BenchRenderChecks.cs"
+  },
+  {
+    "name": "BenchMapPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/BenchMapPoseChecks.cs"
+  },
+  {
+    "name": "BenchPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/BenchPoseChecks.cs"
+  },
+  {
+    "name": "BenchWakeTravelChecks",
+    "kind": "native",
+    "source": ".artifacts/BenchWakeTravelChecks.cs"
+  },
+  {
+    "name": "BirthplaceChecks",
+    "kind": "fixture",
+    "source": ".artifacts/BirthplaceChecks.cs"
+  },
+  {
+    "name": "CameraChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CameraChecks.cs"
+  },
+  {
+    "name": "CameraSmoothingChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CameraSmoothingChecks.cs"
+  },
+  {
+    "name": "CapMenuBindingChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CapMenuBindingChecks.cs"
+  },
+  {
+    "name": "CapTextChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CapTextChecks.cs"
+  },
+  {
+    "name": "CapturedBenchChecks",
+    "kind": "native",
+    "source": ".artifacts/CapturedBenchChecks.cs"
+  },
+  {
+    "name": "CollapsePoseChecks",
+    "kind": "native",
+    "source": ".artifacts/CollapsePoseChecks.cs"
+  },
+  {
+    "name": "CrouchChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CrouchChecks.cs"
+  },
+  {
+    "name": "CrumbleChecks",
+    "kind": "fixture",
+    "source": ".artifacts/CrumbleChecks.cs"
+  },
+  {
+    "name": "CrystalDashRecoveryChecks",
+    "kind": "native",
+    "source": ".artifacts/crystal-dash-recovery/CrystalDashRecoveryChecks.cs"
+  },
+  {
+    "name": "DarknessChecks",
+    "kind": "fixture",
+    "source": ".artifacts/DarknessChecks.cs"
+  },
+  {
+    "name": "DeathCapChecks",
+    "kind": "native",
+    "source": ".artifacts/DeathCapChecks.cs"
+  },
+  {
+    "name": "DebugRefreshChecks",
+    "kind": "fixture",
+    "source": ".artifacts/DebugRefreshChecks.cs"
+  },
+  {
+    "name": "DebugToolsChecks",
+    "kind": "fixture",
+    "source": ".artifacts/DebugToolsChecks.cs"
+  },
+  {
+    "name": "ConversationChecks",
+    "kind": "native",
+    "source": ".artifacts/dialogue-npc/ConversationChecks.cs"
+  },
+  {
+    "name": "DreamArrivalChecks",
+    "kind": "native",
+    "source": ".artifacts/DreamArrivalChecks.cs"
+  },
+  {
+    "name": "DreamerSequenceChecks",
+    "kind": "fixture",
+    "source": ".artifacts/DreamerSequenceChecks.cs"
+  },
+  {
+    "name": "DreamNailSwingChecks",
+    "kind": "native",
+    "source": ".artifacts/DreamNailSwingChecks.cs"
+  },
+  {
+    "name": "DreamTwirlChecks",
+    "kind": "native",
+    "source": ".artifacts/DreamTwirlChecks.cs"
+  },
+  {
+    "name": "FallDestinationChecks",
+    "kind": "fixture",
+    "source": ".artifacts/FallDestinationChecks.cs"
+  },
+  {
+    "name": "FocusDashChecks",
+    "kind": "native",
+    "source": ".artifacts/focus-dash-visuals/FocusDashChecks.cs"
+  },
+  {
+    "name": "GenericInteractionChecks",
+    "kind": "native",
+    "source": ".artifacts/GenericInteractionChecks.cs"
+  },
+  {
+    "name": "GeoContactChecks",
+    "kind": "fixture",
+    "source": ".artifacts/GeoContactChecks.cs"
+  },
+  {
+    "name": "HazardHandoverChecks",
+    "kind": "fixture",
+    "source": ".artifacts/HazardHandoverChecks.cs"
+  },
+  {
+    "name": "HazardRecoilChecks",
+    "kind": "fixture",
+    "hostReferences": true,
+    "source": ".artifacts/HazardRecoilChecks.cs"
+  },
+  {
+    "name": "HazardRecoveryMotionChecks",
+    "kind": "native",
+    "source": ".artifacts/HazardRecoveryMotionChecks.cs"
+  },
+  {
+    "name": "HeadReturnChecks",
+    "kind": "native",
+    "source": ".artifacts/HeadReturnChecks.cs"
+  },
+  {
+    "name": "HealthToggleChecks",
+    "kind": "fixture",
+    "source": ".artifacts/HealthToggleChecks.cs"
+  },
+  {
+    "name": "HitboxOverlayChecks",
+    "kind": "fixture",
+    "source": ".artifacts/HitboxOverlayChecks.cs"
+  },
+  {
+    "name": "HurtTransitionChecks",
+    "kind": "native",
+    "source": ".artifacts/HurtTransitionChecks.cs"
+  },
+  {
+    "name": "InteractionChecks",
+    "kind": "native",
+    "source": ".artifacts/interaction-coverage/InteractionChecks.cs"
+  },
+  {
+    "name": "InteractionContactChecks",
+    "kind": "fixture",
+    "source": ".artifacts/InteractionContactChecks.cs"
+  },
+  {
+    "name": "MageRangeChecks",
+    "kind": "fixture",
+    "source": ".artifacts/MageRangeChecks.cs"
+  },
+  {
+    "name": "MapChallengeChecks",
+    "kind": "native",
+    "source": ".artifacts/map-challenge/MapChallengeChecks.cs"
+  },
+  {
+    "name": "MenuBindingChecks",
+    "kind": "fixture",
+    "source": ".artifacts/MenuBindingChecks.cs"
+  },
+  {
+    "name": "NoBonkNativeChecks",
+    "kind": "native",
+    "source": ".artifacts/NoBonkNativeChecks.cs"
+  },
+  {
+    "name": "OpeningHandoverChecks",
+    "kind": "fixture",
+    "source": ".artifacts/OpeningHandoverChecks.cs"
+  },
+  {
+    "name": "PerformanceChecks",
+    "kind": "fixture",
+    "source": ".artifacts/PerformanceChecks.cs"
+  },
+  {
+    "name": "RemainingPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/remaining-poses/RemainingPoseChecks.cs"
+  },
+  {
+    "name": "EyeMaskChecks",
+    "kind": "native",
+    "source": ".artifacts/shade-eyes/EyeMaskChecks.cs"
+  },
+  {
+    "name": "SleepSoundChecks",
+    "kind": "native",
+    "source": ".artifacts/SleepSoundChecks.cs"
+  },
+  {
+    "name": "SoulFakeoutChecks",
+    "kind": "native",
+    "source": ".artifacts/SoulFakeoutChecks.cs"
+  },
+  {
+    "name": "SpatialSensorChecks",
+    "kind": "fixture",
+    "source": ".artifacts/SpatialSensorChecks.cs"
+  },
+  {
+    "name": "SpellPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/spell-presentation/SpellPoseChecks.cs"
+  },
+  {
+    "name": "StompParryChecks",
+    "kind": "fixture",
+    "source": ".artifacts/StompParryChecks.cs"
+  },
+  {
+    "name": "ThreeRequestChecks",
+    "kind": "native",
+    "source": ".artifacts/ThreeRequestChecks.cs"
+  },
+  {
+    "name": "TransitionChecks",
+    "kind": "native",
+    "source": ".artifacts/transition-coverage/TransitionChecks.cs"
+  },
+  {
+    "name": "UnnCrawlChecks",
+    "kind": "native",
+    "source": ".artifacts/UnnCrawlChecks.cs"
+  },
+  {
+    "name": "UpgradeKnockoutChecks",
+    "kind": "native",
+    "source": ".artifacts/UpgradeKnockoutChecks.cs"
+  },
+  {
+    "name": "VolumeChecks",
+    "kind": "fixture",
+    "source": ".artifacts/VolumeChecks.cs"
+  },
+  {
+    "name": "WebbedPoseChecks",
+    "kind": "native",
+    "source": ".artifacts/WebbedPoseChecks.cs"
+  },
+  {
+    "name": "WebEscapeChecks",
+    "kind": "native",
+    "source": ".artifacts/WebEscapeChecks.cs"
+  },
+  {
+    "name": "WebOwnershipChecks",
+    "kind": "native",
+    "source": ".artifacts/WebOwnershipChecks.cs"
+  },
+  {
+    "name": "ApiChecks",
+    "kind": "fixture",
+    "file": "Tools/ApiCompatibility/ApiChecks.cs.test",
+    "source": "Tools/ApiCompatibility/ApiChecks.cs.test"
+  },
+  {
+    "name": "QuickSlashChecks",
+    "kind": "policy",
+    "project": "Tools/QuickSlashChecks/QuickSlashChecks.csproj",
+    "source": "Tools/QuickSlashChecks/Program.cs.test"
+  },
+  {
+    "name": "DiveSlideChecks",
+    "kind": "policy",
+    "project": "Tools/DiveSlideChecks/DiveSlideChecks.csproj",
+    "source": "Tools/DiveSlideChecks/Program.cs.test"
+  },
+  {
+    "name": "ShadeRechargeChecks",
+    "kind": "policy",
+    "project": "Tools/ShadeRechargeChecks/ShadeRechargeChecks.csproj",
+    "source": "Tools/ShadeRechargeChecks/Program.cs.test"
+  },
+  {
+    "name": "NativeMetadata",
+    "kind": "fixture",
+    "file": "Tools/RoomEntryChecks/NativeMetadata.cs.txt",
+    "source": "Tools/RoomEntryChecks/NativeMetadata.cs.txt"
+  },
+  {
+    "name": "CharmMenuCheck",
+    "kind": "fixture",
+    "file": "Tools/CharmMenuCheck.cs.txt",
+    "source": "Tools/CharmMenuCheck.cs.txt"
+  },
+  {
+    "name": "BossHpCheck",
+    "kind": "fixture",
+    "file": "Tools/BossHpCheck.cs.txt",
+    "source": "Tools/BossHpCheck.cs.txt"
+  },
+  {
+    "name": "DebugSettingsCheck",
+    "kind": "fixture",
+    "file": "Tools/DebugSettingsCheck.cs.txt",
+    "source": "Tools/DebugSettingsCheck.cs.txt"
+  },
+  {
+    "name": "BenchReturnMetadata",
+    "kind": "fixture",
+    "file": "Tools/BenchReturnMetadata.cs.txt",
+    "source": "Tools/BenchReturnMetadata.cs.txt"
+  },
+  {
+    "name": "DamageDeliveryChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/DamageDeliveryChecks.cs"
+  },
+  {
+    "name": "CombatControlChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/CombatControlChecks.cs"
+  },
+  {
+    "name": "StompAnticipationChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/StompAnticipationChecks.cs"
+  },
+  {
+    "name": "SpellDamageHandoverChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/SpellDamageHandoverChecks.cs"
+  },
+  {
+    "name": "BridgeContractChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/BridgeContractChecks.cs"
+  },
+  {
+    "name": "GameplayOwnershipChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/GameplayOwnershipChecks.cs"
+  },
+  {
+    "name": "NailAccountingChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/NailAccountingChecks.cs"
+  },
+  {
+    "name": "PickupFacingChecks",
+    "kind": "native",
+    "source": "IndependentHost/RegressionChecks/Fixtures/PickupFacingChecks.cs"
+  },
+  {
+    "name": "LedgeHangChecks",
+    "kind": "native",
+    "source": "IndependentHost/RegressionChecks/Fixtures/LedgeHangChecks.cs"
+  },
+  {
+    "name": "LiftSupportChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/LiftSupportChecks.cs"
+  },
+  {
+    "name": "NativeHealthChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/NativeHealthChecks.cs"
+  },
+  {
+    "name": "CameraParityChecks",
+    "kind": "fixture",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/CameraParityChecks.cs"
+  },
+  {
+    "name": "GameplayReturnChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/GameplayReturnChecks.cs"
+  },
+  {
+    "name": "RecoveryJumpChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/RecoveryJumpChecks.cs"
+  },
+  {
+    "name": "CompoundCollisionChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/CompoundCollisionChecks.cs"
+  }
+]

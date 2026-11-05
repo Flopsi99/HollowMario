@@ -1,0 +1,95 @@
+using System;
+using MarioHollow;
+using HollowMario;
+using UnityEngine;
+
+static class VoidGuardChecks
+{
+    static float now=100;
+    static void Check(bool value,string why){if(!value)throw new Exception(why);}
+    static void Near(float value,float expected,string why){Check(Math.Abs(value-expected)<.001f,why);}
+    static void Advance(float seconds){now+=seconds;Time.time=Time.unscaledTime=now;}
+    static KnightResetFollow Setup(out Controller c,bool save=true)
+    {
+        now+=100;Advance(0);MarioMath.Origin=new Vector2();Native.Reset();VoidGuard.Forget();
+        Physics2D.GroundCount=Physics2D.Queries=0;Collision.Objects=5;CapSystem.Metallic=false;
+        FallDestination.NativeEndpoint=false;
+        c=new Controller();Controller.Instance=c;
+        var follow=new KnightResetFollow(new BepInEx.Logging.ManualLogSource(),typeof(Controller),2000);
+        Plugin.Instance=new Plugin{knightFollow=follow,Scene=40};follow.BeginRoomEntry(40);
+        if(save){Place(c,2,3,0x0C400201);Check(follow.RememberRoomEntry(c,40),"Save first room landing.");}
+        return follow;
+    }
+    static void Place(Controller c,float x,float y,uint action=0x0100088C)
+    {
+        c.State=new MarioState{px=(x-MarioMath.Origin.x)/.0105f,py=(y-MarioMath.Origin.y)/.0105f,
+            action=action,vy=-30,vx=50,forwardVelocity=50,health=2176,faceAngle=1.57f};
+        c.hero.transform.position=new Vector3(x,y+1.4f,0);c.PrevState=c.State;
+    }
+    static void AtEntry(Controller c,string route)
+    {
+        Check(Plugin.Instance.Returns==1,route+" must use one shared room-entry teleport.");
+        Near(c.hero.transform.position.x,2,route+" first-landing X, not later safe floor/checkpoint.");
+        Near(c.hero.transform.position.y,4.4f,route+" first-landing ground height.");
+        Check(c.State.action==0x0C400201&&c.State.forwardVelocity==0&&c.State.vy==0,route+" neutral action and momentum.");
+        Check(c.State.health==2176,route+" preserves health through F5's direct teleport.");
+    }
+    internal static void Run()
+    {
+        Controller c;var follow=Setup(out c);
+        Place(c,20,4,0x0C400201);VoidGuard.Tick(c,follow);follow.RememberRoomEntry(c,40);
+        Collision.Objects=0;Place(c,20,1);VoidGuard.Tick(c,follow);Advance(.79f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Normal missing-world wait remains .8 seconds.");
+        Advance(.02f);VoidGuard.Tick(c,follow);AtEntry(c,"Normal void recovery");
+        VoidGuard.Tick(c,follow);Check(Plugin.Instance.Returns==1,"Existing recovery cooldown prevents repeats.");
+
+        follow=Setup(out c);Place(c,20,1);VoidGuard.Tick(c,follow);Advance(4.99f);VoidGuard.Tick(c,follow);
+        Check(Physics2D.Queries==0&&Plugin.Instance.Returns==0,"Long-fall fallback does not query/recover before five seconds.");
+        Advance(.02f);VoidGuard.Tick(c,follow);AtEntry(c,"Five-second no-ground fallback");
+        Check(Physics2D.Queries==1,"Only query when a rescue is due.");
+
+        follow=Setup(out c);Physics2D.GroundCount=1;Place(c,20,1);VoidGuard.Tick(c,follow);Advance(5.01f);VoidGuard.Tick(c,follow);
+        Advance(1);VoidGuard.Tick(c,follow);
+        Check(Physics2D.Queries==2&&Plugin.Instance.Returns==0,"Real floor below prevents recovery; recheck later if the fall route changes.");
+        Physics2D.GroundCount=0;Advance(.51f);VoidGuard.Tick(c,follow);
+        AtEntry(c,"Fall leaving the valid floor column");
+
+        follow=Setup(out c);Physics2D.GroundCount=1;Collision.Objects=0;Place(c,20,1);
+        VoidGuard.Tick(c,follow);Advance(.81f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Sparse converted terrain must not intercept a fall toward native ground.");
+
+        follow=Setup(out c);FallDestination.NativeEndpoint=true;Collision.Objects=0;Place(c,20,1);
+        VoidGuard.Tick(c,follow);Advance(.81f);VoidGuard.Tick(c,follow);Advance(5.1f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Pit/automatic exit below protects both missing-world and five-second routes.");
+        CapSystem.Metallic=true;Place(c,20,-100,0x000042F4);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Native destination below also protects Metal's early bottom guard.");
+
+        follow=Setup(out c);Place(c,20,1);VoidGuard.Tick(c,follow);Advance(4.99f);
+        c.hero.cState.hazardDeath=true;VoidGuard.Tick(c,follow);Advance(2);VoidGuard.Tick(c,follow);
+        c.hero.cState.hazardDeath=false;c.hero.cState.hazardRespawning=true;VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0&&Physics2D.Queries==0,"Native pit death/respawn owns the reset even before input is relinquished.");
+        c.hero.cState.hazardRespawning=false;VoidGuard.Tick(c,follow);Advance(.51f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Native hazard resets the old long-fall timer.");
+
+        follow=Setup(out c);CapSystem.Metallic=true;Place(c,20,-100,0x000042F4);VoidGuard.Tick(c,follow);
+        AtEntry(c,"Metal below-room-bottom fallback");Check(!CapSystem.Metallic,"Shared reset clears the active cap.");
+
+        follow=Setup(out c);CapSystem.Metallic=true;Collision.Objects=0;Place(c,20,1,0x000042F4);
+        VoidGuard.Tick(c,follow);Advance(.81f);VoidGuard.Tick(c,follow);AtEntry(c,"Metal missing-world fallback");
+
+        follow=Setup(out c,false);Collision.Objects=0;Place(c,20,1);VoidGuard.Tick(c,follow);Advance(.81f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"No first landing means no invented last-floor/hazard-checkpoint destination.");
+
+        follow=Setup(out c);Plugin.Instance.Scene=41;Collision.Objects=0;Place(c,20,1);VoidGuard.Tick(c,follow);Advance(.81f);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Never use a previous room's entry.");
+
+        follow=Setup(out c);CapSystem.Metallic=true;c.hero.controlReqlinquished=true;Place(c,20,-100,0x000042F4);
+        VoidGuard.Tick(c,follow);Advance(6);VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0&&Physics2D.Queries==0,"Native control ownership blocks automatic rescue.");
+        c.hero.controlReqlinquished=false;c.hero.cState.transitioning=true;VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Do not replace a native room transition.");
+        c.hero.cState.transitioning=false;c.MarioId=-1;VoidGuard.Tick(c,follow);
+        Check(Plugin.Instance.Returns==0,"Do not automatically teleport the selected Knight.");
+        Console.WriteLine("PASS all three recovery paths respect native floor/pit/exit destinations and hazard ownership; true void still uses F5's fixed room entry with timing, momentum and room checks retained.");
+    }
+}

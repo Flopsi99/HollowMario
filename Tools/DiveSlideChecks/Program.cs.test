@@ -1,0 +1,194 @@
+// Real production follow-up/parry helpers and installed Harmony. Native enemy
+// hit effects are observable stand-ins; no Unity game loop is started.
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using HollowMario;
+
+struct HitInstance
+{
+    public object Source;
+    public int DamageDealt, AttackType;
+    public float Multiplier, MagnitudeMultiplier, Direction;
+    public bool IgnoreInvulnerable;
+}
+struct Row { public string Id; public float Damage; }
+sealed class HealthManager : UnityEngine.Component
+{
+    public int hp=10000, Soul, Contacts, Successes, Evasion, Lost;
+    public bool Blocked, DamageOverride;
+    public float Metal=1;
+    public Action Nested;
+    public HitInstance Last;
+    public object hitEffectReceiver;
+    public readonly SpriteFlash Visual=new SpriteFlash();
+    public HealthManager(){Flashes=new UnityEngine.Component[]{Visual};}
+    [MethodImpl(MethodImplOptions.NoInlining)] public void Hit(HitInstance hit)
+    {
+        // Same placement as the native Metal prefix: its rounded raw-damage
+        // bonus precedes TakeDamage's Fury multiplier/final rounding.
+        if(Metal!=1)hit.DamageDealt=(int)Math.Round(hit.DamageDealt*Metal,MidpointRounding.AwayFromZero);
+        int before=hp;Last=hit;
+        if(!Blocked&&hit.DamageDealt>0)TakeDamage(hit);
+        if(hp<before){Lost=before-hp;Successes++;}
+    }
+    [MethodImpl(MethodImplOptions.NoInlining)] private void TakeDamage(HitInstance hit)
+    {
+        Contacts++;if(hit.AttackType==0)Soul++;
+        var visual=hitEffectReceiver as UnityEngine.Component??this;
+        foreach(SpriteFlash part in visual.GetComponentsInChildren(typeof(SpriteFlash),false))part.NativeWhite();
+        Action nested=Nested;Nested=null;if(nested!=null)nested();
+        int amount=(int)Math.Round(hit.DamageDealt*hit.Multiplier);
+        if(DamageOverride)amount=1;
+        hp=Math.Max(hp-amount,-50);
+        Evasion++;
+    }
+}
+sealed class SpriteFlash : UnityEngine.Component
+{
+    public int Initialized,GrayCalls;
+    public bool Throw;
+    public UnityEngine.Color Last;
+    public float Amount,Up,Stay,Down;
+    private void Start(){Initialized++;}
+    public void NativeWhite(){Last=new UnityEngine.Color(1,1,1,1);}
+    public void flash(UnityEngine.Color color,float amount,float up,float stay,float down)
+    {
+        if(Throw)throw new InvalidOperationException("fixture flash failure");
+        if(Initialized==0)throw new InvalidOperationException("native flash not initialized");
+        GrayCalls++;Last=color;Amount=amount;Up=up;Stay=stay;Down=down;
+    }
+}
+sealed class Attacks
+{
+    public int Nail=10;public float Strength=1,Fury=1,Knockback=1;
+    public bool ThrowAfter;
+    static readonly FieldInfo Hp=typeof(HealthManager).GetField("hp");
+    [MethodImpl(MethodImplOptions.NoInlining)] public void Strike(HealthManager target,Hero hero,float dir,Row row)
+    {
+        int nail=(int)Math.Round(Nail*Strength);
+        HitInstance hit=new HitInstance{Source=hero.gameObject,AttackType=0,
+            DamageDealt=Math.Max(1,(int)Math.Round(nail*row.Damage)),Multiplier=Fury,
+            MagnitudeMultiplier=Knockback,Direction=dir>0?0:180,IgnoreInvulnerable=false};
+        var timer=NativeDamageTimer.BeginDiveHit(target,hero,Hp,Plugin.Instance.knightFollow.Action(Plugin.Instance.knightFollow.Controller()));
+        target.Hit(hit);
+        NativeDamageTimer.FinishDiveHit(timer);
+        if(ThrowAfter)throw new InvalidOperationException("fixture exception");
+    }
+}
+sealed class Hero : UnityEngine.Behaviour { public float parryInvulnTimer,INVUL_TIME_PARRY=.15f; }
+sealed class Controller { public Hero Hero=new Hero();public uint Action;public bool Alive=true; }
+namespace HollowMario
+{
+    sealed class KnightResetFollow
+    {
+        internal Controller Current=new Controller();
+        internal object Controller()=>Current;
+        internal object Hero(object c)=>((Controller)c).Hero;
+        internal bool MarioAlive(object c)=>c is Controller&&((Controller)c).Alive;
+        internal uint Action(object c)=>((Controller)c).Action;
+        internal int Animation(object c)=>0;
+    }
+    sealed class Plugin { internal static Plugin Instance=new Plugin();internal KnightResetFollow knightFollow=new KnightResetFollow(); }
+    static class NativeMovementGates
+    {
+        internal static event Action<uint> ActionInitialized;
+        internal static void Signal(uint action){Plugin.Instance.knightFollow.Current.Action=action;ActionInitialized?.Invoke(action);}
+    }
+}
+namespace UnityEngine
+{
+    public class Component
+    {
+        public readonly object gameObject=new object();public bool Active=true;
+        public Component[] Flashes=new Component[0];
+        public Component[] GetComponentsInChildren(Type type,bool includeInactive)
+            =>Flashes.Where(p=>type.IsInstanceOfType(p)&&(includeInactive||p.Active)).ToArray();
+    }
+    public class Behaviour : Component { public bool enabled; }
+    public struct Color{public float r,g,b,a;public Color(float r,float g,float b,float a){this.r=r;this.g=g;this.b=b;this.a=a;}}
+    public static class Mathf { public static int RoundToInt(float value)=>(int)Math.Round(value); }
+}
+static class Program
+{
+    const uint Dive=0x0188088A,Slide=0x00880456,Idle=0x0C400201,LongJump=0x03000888;
+    static Attacks moves=new Attacks();
+    static Hero Hero=>Plugin.Instance.knightFollow.Current.Hero;
+    static void Check(bool condition,string why){if(!condition)throw new Exception(why);}
+    static void Hit(HealthManager target,string id=null)
+    {
+        uint action=Plugin.Instance.knightFollow.Current.Action;
+        moves.Strike(target,Hero,1,new Row{Id=id??(action==Dive?"dive":"dive_slide"),Damage=2});
+    }
+    static void Fresh(){DiveSlideFollowup.Forget();NativeMovementGates.Signal(Idle);moves=new Attacks();Hero.parryInvulnTimer=0;}
+    static void Main()
+    {
+        var h=new Harmony("local.dive-slide-followup");
+        DiveSlideFollowup.Arm(h,typeof(Attacks),typeof(HealthManager),new BepInEx.Logging.ManualLogSource("dive-slide-check"));
+        Check(DiveSlideFollowup.Ready,"Production helper must arm against native-shaped IL.");
+        int combinations=0;
+        foreach(int nail in new[]{1,5,8,13,21})foreach(float strength in new[]{1f,1.5f})
+        foreach(float fury in new[]{1f,1.75f})foreach(float metal in new[]{1f,1.5f})
+        {
+            Fresh();moves.Nail=nail;moves.Strength=strength;moves.Fury=fury;moves.Knockback=1.75f;
+            var enemy=new HealthManager{Metal=metal};NativeMovementGates.Signal(Dive);Hit(enemy);int full=enemy.Lost;
+            Check(full>0,"Dive remains a damaging hit.");
+            NativeMovementGates.Signal(Slide);Hero.parryInvulnTimer=0;Hit(enemy);
+            Check(enemy.Lost==Math.Max(1,(int)Math.Round(full*.25f)),"Quarter only final post-modifier damage.");
+            Check(enemy.Soul==2&&enemy.Contacts==2&&enemy.Successes==2&&enemy.Evasion==2,"Follow-up retains SOUL/contact/success/evasion paths.");
+            Check(Math.Abs(Hero.parryInvulnTimer-.3f)<.0001,"Actual production successful-hit protection still refreshes.");
+            Check(enemy.Last.Multiplier==fury&&enemy.Last.MagnitudeMultiplier==1.75f&&!enemy.Last.IgnoreInvulnerable&&enemy.Last.AttackType==0,"Payload Fury/recoil/blocking/type remain native.");
+            var other=new HealthManager{Metal=metal};Hit(other);Check(other.Lost==full,"Other enemy on same slide remains full damage.");
+            combinations++;
+        }
+        Fresh();var a=new HealthManager();var b=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);Hit(b);
+        NativeMovementGates.Signal(Slide);Hit(a);Hit(b);Check(a.Lost==5&&b.Lost==5,"Each actually damaged dive target has its own follow-up reduction.");
+        Fresh();a=new HealthManager{Blocked=true};NativeMovementGates.Signal(Dive);Hit(a);a.Blocked=false;NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==20,"Blocked dive cannot mark an enemy.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Slide);Hit(a);Check(a.Lost==20,"Slide without preceding dive is normal.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Idle);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==20,"Intervening action breaks association.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Dive);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==20,"New initializer of the same dive cannot inherit old targets.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==20,"Unrelated restarted slide cannot inherit old targets.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(LongJump);Hit(a,"dive");NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==20,"Sharp Shadow's mapped dive row does not seed a real dive chain.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);DiveSlideFollowup.Forget();Hit(a);
+        Check(a.Lost==20,"Handover/scene/F5 teardown invalidates the chain.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);a.DamageOverride=true;Hit(a);
+        Check(a.Lost==1,"A native one-damage override remains a positive successful hit.");
+        Fresh();a=new HealthManager();b=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);Hit(b);NativeMovementGates.Signal(Slide);
+        a.Nested=()=>Hit(b,"punch");Hit(a);Check(a.Lost==5&&b.Lost==20,"Nested unrelated strike does not borrow the outer reduction; outer scope restored.");
+        b=new HealthManager();a.Nested=()=>b.Hit(new HitInstance{Source=Hero.gameObject,DamageDealt=20,Multiplier=1});Hit(a);
+        Check(b.Lost==20,"Nested different receiver cannot inherit reduction.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);moves.ThrowAfter=true;
+        try{Hit(a);}catch(InvalidOperationException){}moves.ThrowAfter=false;
+        int before=a.hp;a.Hit(new HitInstance{Source=Hero.gameObject,DamageDealt=20,Multiplier=1});
+        Check(before-a.hp==20,"Exception restores the direct-hit scope.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);
+        Check(a.Visual.GrayCalls==0,"The full dive keeps normal hit feedback.");
+        NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Visual.GrayCalls==1&&a.Visual.Initialized==1&&a.Visual.Last.r==.55f&&a.Visual.Last.g==.55f&&a.Visual.Last.b==.55f,"Accepted weak slide gets native neutral-gray feedback.");
+        Check(a.Visual.Amount==.75f&&a.Visual.Up==.001f&&a.Visual.Stay==.05f&&a.Visual.Down==.1f,"Native quick-flash envelope is passed intact.");
+        b=new HealthManager();Hit(b);Check(b.Visual.GrayCalls==0&&b.Visual.Last.r==1,"Fresh slide target keeps its normal flash.");
+        NativeMovementGates.Signal(Idle);Hit(a,"punch");Check(a.Visual.GrayCalls==1&&a.Visual.Last.r==1,"Next unrelated hit replaces gray with native feedback.");
+        Fresh();a=new HealthManager();NativeMovementGates.Signal(Dive);Hit(a);a.Blocked=true;NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Visual.GrayCalls==0,"Rejected weak follow-up cannot flash gray.");
+        Fresh();a=new HealthManager();var child=new SpriteFlash();var inactive=new SpriteFlash{Active=false};
+        var receiver=new UnityEngine.Component{Flashes=new UnityEngine.Component[]{child,inactive}};a.hitEffectReceiver=receiver;
+        NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(child.GrayCalls==1&&inactive.GrayCalls==0&&a.Visual.GrayCalls==0,"Follow actual native visual receiver and active children, not an unrelated health object.");
+        Fresh();a=new HealthManager();a.Flashes=new UnityEngine.Component[0];NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==5&&a.Soul==2,"Enemy without native flash still takes the same weak successful hit.");
+        Fresh();a=new HealthManager();a.Visual.Throw=true;NativeMovementGates.Signal(Dive);Hit(a);NativeMovementGates.Signal(Slide);Hit(a);
+        Check(a.Lost==5&&a.Soul==2&&Hero.parryInvulnTimer>0,"Cosmetic failure cannot change damage, SOUL or hit protection.");
+        Console.WriteLine("PASS gray flash only after accepted quartered HP loss, native initialization/envelope/visual receiver/active children, normal feedback on later hits and cosmetic-failure isolation.");
+        Console.WriteLine("PASS "+combinations+" final-damage combinations with Strength/Fury/Metal, minimum one, actual production successful-hit protection and retained hit-effect counters.");
+        Console.WriteLine("PASS per-enemy/sequence identity, blocked/missed/unrelated/restarted moves, Sharp Shadow exclusion, cleanup, nested calls and exception-safe restoration. No game launched.");
+        DiveSlideFollowup.Dispose();h.UnpatchSelf();
+    }
+}

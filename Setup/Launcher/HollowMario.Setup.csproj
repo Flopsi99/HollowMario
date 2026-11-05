@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion>
+    <AssemblyName>HollowMario-Setup</AssemblyName><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <HollowKnightDir Condition="'$(HollowKnightDir)'==''">E:\SteamLibrary\steamapps\common\Hollow Knight</HollowKnightDir>
+    <MonoCecilPath Condition="'$(MonoCecilPath)'==''">$(HollowKnightDir)\hollow_knight_Data\Managed\Mono.Cecil.dll</MonoCecilPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Core\HollowMario.Setup.Core.csproj" />
+    <Reference Include="System.Windows.Forms" /><Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" /><Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="Mono.Cecil"><HintPath>$(MonoCecilPath)</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+</Project>

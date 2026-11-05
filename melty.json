@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "mode": "installed",
+  "games": [
+    {
+      "slug": "hollow-knight",
+      "role": "primary",
+      "version": "1.5.78.11833"
+    },
+    {
+      "slug": "super-mario-64",
+      "role": "companion",
+      "ownCopy": true
+    }
+  ],
+  "components": [
+    {
+      "id": "main",
+      "fileName": "HollowMario-*-melty-*.zip",
+      "label": "Hollow Mario community API",
+      "kind": "main",
+      "required": true
+    }
+  ],
+  "requirements": [
+    {
+      "kind": "library",
+      "id": "libsm64",
+      "to": "{managed}/runtime"
+    }
+  ],
+  "mappings": [
+    {
+      "component": "main",
+      "from": "",
+      "to": "{managed}/setup"
+    }
+  ],
+  "launch": {
+    "kind": "exe",
+    "path": "{managed}/setup/HollowMario-Setup.exe",
+    "args": [
+      "--melty",
+      "--game-dir",
+      "{game}",
+      "--rom-dir",
+      "{managed}/own/super-mario-64",
+      "--native-dir",
+      "{managed}/runtime"
+    ]
+  },
+  "ownCopies": [
+    {
+      "game": "super-mario-64",
+      "names": [
+        "super mario 64",
+        "sm64"
+      ],
+      "rom": {
+        "extensions": [
+          ".z64",
+          ".n64",
+          ".v64"
+        ],
+        "as": "baserom.us.z64",
+        "sha1": [
+          "9bef1128717f958171a4afac3ed78ee2bb4e86ce"
+        ]
+      },
+      "to": "{managed}/own/super-mario-64"
+    }
+  ],
+  "runtimeData": [
+    "{localappdata}/HollowMario"
+  ],
+  "test": {
+    "minutes": 3,
+    "checks": [
+      "loader-route",
+      "mod-ready",
+      "mario-on-m",
+      "room-collision",
+      "mario-moves",
+      "mario-hits-enemy",
+      "mario-sounds",
+      "hit-reaction",
+      "m-restores-knight",
+      "moving-safety-floor",
+      "reset-follow",
+      "save-protected"
+    ]
+  }
+}

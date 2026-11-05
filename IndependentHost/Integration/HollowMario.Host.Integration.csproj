@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>HollowMario.Host.Integration</AssemblyName>
+    <LoaderTarget Condition="'$(LoaderTarget)'==''">HollowKnightApi</LoaderTarget>
+    <HollowKnightDir Condition="'$(HollowKnightDir)'==''">E:\SteamLibrary\steamapps\common\Hollow Knight</HollowKnightDir>
+    <HollowKnightAssembly Condition="'$(HollowKnightAssembly)'==''">$(HollowKnightDir)/hollow_knight_Data/Managed/Assembly-CSharp.dll</HollowKnightAssembly>
+    <ApiPackageDir Condition="'$(ApiPackageDir)'==''">../../.artifacts/independent-host/services</ApiPackageDir>
+    <IntermediateOutputPath>obj/$(LoaderTarget)/$(Configuration)/</IntermediateOutputPath>
+  </PropertyGroup>
+  <Target Name="RejectInjection" BeforeTargets="CoreCompile"><Error Condition="'$(LoaderTarget)' != 'HollowKnightApi'" Text="Injection support has been removed." /></Target>
+  <ItemGroup>
+    <Reference Include="0Harmony"><HintPath>$(ApiPackageDir)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <ProjectReference Include="../Core/HollowMario.Host.Core.csproj" />
+    <ProjectReference Include="../Unity/HollowMario.Host.Unity.csproj" />
+    <Compile Include="../../Diagnostics/MeltyBenchInput.cs" Link="Checks/VirtualInput.cs" />
+    <Reference Include="HollowMario.ApiRuntime"><HintPath>$(ApiPackageDir)/HollowMario.ApiRuntime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(HollowKnightAssembly)</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="PlayMaker"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/PlayMaker.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.Physics2DModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.Physics2DModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.ScreenCaptureModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,54 @@
+using System;
+using HollowMario;
+using MarioHollow;
+using UnityEngine;
+
+static class RoomEntryChecks
+{
+    static void Check(bool value,string why){if(!value)throw new Exception(why);}
+    static void Near(float value,float expected,string why){Check(Math.Abs(value-expected)<.001f,why);}
+    static KnightResetFollow Setup(out Controller c)
+    {
+        c=new Controller();Controller.Instance=c;MarioMath.Origin=new Vector2();Time.unscaledTime=0;Native.Reset();
+        return new KnightResetFollow(new BepInEx.Logging.ManualLogSource(),typeof(Controller),2000);
+    }
+    static void Land(Controller c,float x,float y)
+    {
+        c.State=new MarioState{action=0x0C400201,px=(x-MarioMath.Origin.x)/.0105f,py=(y-MarioMath.Origin.y)/.0105f,health=2176,faceAngle=1.57f};
+        c.PrevState=c.State;c.hero.transform.position=new Vector3(x,y+1.4f,0);
+    }
+    internal static void Run()
+    {
+        Controller c;var follow=Setup(out c);follow.BeginRoomEntry(10);
+        foreach(uint action in new uint[]{0,0x0100088C,0x00001924,0x380022C0,0x000042F4,0x00020339})
+        {c.State=new MarioState{action=action};Check(!follow.RememberRoomEntry(c,10),"Air/spawn/swim/metal-fall/automatic cannot become entry.");}
+        Check(!follow.ReturnToRoomEntry(c,10),"No checkpoint fallback before first landing.");
+        Land(c,2,3);c.hero.cState.transitioning=true;
+        Check(!follow.RememberRoomEntry(c,10),"Cannot record transition.");c.hero.cState.transitioning=false;
+        c.hero.controlReqlinquished=true;Check(!follow.RememberRoomEntry(c,10),"Cannot record native-owned handover.");c.hero.controlReqlinquished=false;
+        Check(follow.RememberRoomEntry(c,10),"Record first allowed ground contact.");
+        Land(c,2.1f,3);Check(!follow.RememberRoomEntry(c,10),"Later landing must not move entry.");
+        c.State.action=0x010208B0;c.State.vx=200;c.State.vy=-80;c.State.forwardVelocity=200;
+        Check(follow.ReturnToRoomEntry(c,10),"F5 works immediately with less than normal teleport threshold.");
+        Near(c.hero.transform.position.x,2,"First landing X restored.");Near(c.hero.transform.position.y,4.4f,"Hero feet aligned.");
+        Near(MarioMath.Origin.x,2,"Native recenter X.");Near(MarioMath.Origin.y,3,"Native recenter Y.");
+        Check(c.State.action==0x0C400201&&c.PrevState.action==c.State.action&&c.State.vx==0&&c.State.vy==0&&c.State.forwardVelocity==0,"Both snapshots and momentum reset.");
+        Check(c.State.health==2176&&c.State.faceAngle==1.57f,"No health or facing rewrite.");
+        c.MarioId=-1;follow.BeginRoomEntry(10);c.MarioId=8;Land(c,25,6);
+        Check(!follow.RememberRoomEntry(c,10),"M/focus/map reactivation in same room cannot re-arm entry.");
+        c.hero.transform.parent=new Transform();Check(follow.ReturnToRoomEntry(c,10),"Reuse point after reactivation.");
+        Near(c.hero.transform.position.x,2,"Same room still first landing.");Check(c.hero.transform.parent==null,"Release former platform parenting.");
+        c.MarioId=-1;c.hero.transform.position=new Vector3(90,20,0);c.hero.transform.box=new BoxCollider2D{bounds=new Bounds{min=new Vector3(89,19,0)}};
+        int nativeCalls=Native.Resets;Check(follow.ReturnToRoomEntry(c,10),"F5 works while Knight selected.");
+        Near(c.hero.transform.position.x,2,"Knight target X.");Near(c.hero.transform.position.y,4,"Use current native collider pose.");
+        Check(c.MarioId==-1&&Native.Resets==nativeCalls,"Knight reset does not create or select Mario.");
+        c.MarioId=8;Check(!follow.ReturnToRoomEntry(c,11),"Cannot teleport across room handles.");
+        follow.BeginRoomEntry(11);Check(!follow.ReturnToRoomEntry(c,11),"New room clears stale point.");
+        Land(c,-6,-12);Check(follow.RememberRoomEntry(c,11),"Next room gets its own first landing.");
+        Land(c,50,50);follow.ReturnToRoomEntry(c,11);Near(c.hero.transform.position.x,-6,"New room X.");Near(c.hero.transform.position.y,-10.6f,"Negative-coordinate ground supported.");
+        follow.BeginRoomEntry(12);Land(c,4,5);Check(follow.RememberRoomEntry(c,12),"Reload/revisit represented by new handle re-arms even same named room.");
+        c.hero.cState.dead=true;Check(!follow.ReturnToRoomEntry(c,12),"Do not interrupt death.");c.hero.cState.dead=false;
+        c.hero.transitionState=1;Check(!follow.ReturnToRoomEntry(c,12),"Do not interrupt room transition.");
+        Console.WriteLine("PASS fixed first-landing room entry, action/ownership gates, immediate F5, no recapture on later landing or same-room handover, active/parked characters, platform detachment, negative coordinates, new room/revisit invalidation and native death/transition ownership.");
+    }
+}

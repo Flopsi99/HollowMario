@@ -1,0 +1,207 @@
+// Source-linked native policies and real installed detours/Harmony. Executable
+// ABI thunks and their original action bodies are owned by this test process.
+// No ROM, game engine, window or gameplay is initialized.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using BepInEx.Logging;
+using BepInEx.Configuration;
+using HarmonyLib;
+using HollowMario;
+
+class Data {public bool equippedCharm_32=true,hasDash=true,hasShadowDash=true,hasWalljump=true,equippedCharm_31,equippedCharm_37;}
+class Flags {public bool inWalkZone;}
+class Hero {public Data playerData=new Data();public Flags cState=new Flags();public float RUN_SPEED=8,RUN_SPEED_CH=10,RUN_SPEED_CH_COMBO=11;public bool inAcid,airDashed=true,doubleJumped=true;public float shadowDashTimer=1.25f;}
+class Controller {public Hero hero=new Hero();public uint Action;public int MarioId=5;public bool Alive=true,Held,Busy,DamagePending;public bool Input=true;}
+static class TestNative {public static readonly object Sync=new object();}
+namespace HollowMario
+{
+    class Plugin {internal static Plugin Instance=new Plugin();internal KnightResetFollow knightFollow=new KnightResetFollow();internal ManualLogSource Log=new ManualLogSource("Quick Slash check");internal static int Episodes;internal static void QuickSlashNeutral(object c){Episodes++;}}
+    class KnightResetFollow
+    {
+        internal Controller Current=new Controller();internal object Controller()=>Current;
+        internal object Hero(object c)=>((Controller)c).hero;internal int MarioId(object c)=>((Controller)c).MarioId;
+        internal uint Action(object c)=>((Controller)c).Action;internal bool MarioAlive(object c)=>((Controller)c).Alive;
+        internal bool Busy(object c)=>((Controller)c).Busy;internal bool ControlHeld(object c)=>((Controller)c).Held;
+        internal bool AcceptingInput(object c)=>((Controller)c).Input;
+    }
+    static class NativeSymbols
+    {
+        internal static readonly Dictionary<string,IntPtr> Map=new Dictionary<string,IntPtr>();
+        internal static Dictionary<string,IntPtr> Functions(string path,IntPtr module,params string[] names)
+        {var result=new Dictionary<string,IntPtr>();foreach(string name in names)result.Add(name,Map[name]);return result;}
+    }
+}
+static class Program
+{
+    const uint Punch=0x00800380,Move=0x00800457,Kick=0x018008AC,Idle=0x0C400201,Fall=0x0100088C,Land=0x04000471,Dive=0x0188088A,Pound=0x008008A9,LongJump=0x03000888,Jump=0x03000880;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int Step(IntPtr mario);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate uint SetAction(IntPtr mario,uint action,uint argument);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void Walking(IntPtr mario);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate float Floor(float x,float y,float z,out IntPtr floor);
+    [DllImport("kernel32")]static extern IntPtr VirtualAlloc(IntPtr address,UIntPtr size,uint allocation,uint protection);
+    [DllImport("kernel32")]static extern bool VirtualFree(IntPtr address,UIntPtr size,uint type);
+    static readonly List<Delegate> callbacks=new List<Delegate>();
+    static readonly List<IntPtr> allocations=new List<IntPtr>();
+    static Step punch,moving,kick;static SetAction set;
+    static Controller C=>Plugin.Instance.knightFollow.Current;
+    static IntPtr memory;
+    static bool floorExists;
+    static float floorHeight;
+    static int floorQueries,stopCalls;
+    static void Check(bool value,string why){if(!value)throw new Exception(why);}
+    static uint Action=>unchecked((uint)Marshal.ReadInt32(memory,12));
+    static void Float(int offset,float value){Marshal.Copy(new[]{value},0,IntPtr.Add(memory,offset),1);}
+    static float Float(int offset){var x=new float[1];Marshal.Copy(IntPtr.Add(memory,offset),x,0,1);return x[0];}
+    static IntPtr Thunk(string name,Delegate callback)
+    {
+        IntPtr target=VirtualAlloc(IntPtr.Zero,(UIntPtr)64,0x3000,0x40);Check(target!=IntPtr.Zero,"Allocate own native ABI thunk.");
+        var code=new byte[64];for(int i=0;i<code.Length;i++)code[i]=0x90;
+        code[0]=0x48;code[1]=0xB8;BitConverter.GetBytes(Marshal.GetFunctionPointerForDelegate(callback).ToInt64()).CopyTo(code,2);
+        code[10]=0xFF;code[11]=0xE0;Marshal.Copy(code,0,target,code.Length);
+        callbacks.Add(callback);allocations.Add(target);NativeSymbols.Map.Add(name,target);return target;
+    }
+    static uint OriginalSet(IntPtr m,uint action,uint argument)
+    {
+        Marshal.WriteInt32(m,12,unchecked((int)action));
+        if(action==Kick)Marshal.Copy(new[]{20f},0,IntPtr.Add(m,0x4C),1);
+        if(action==LongJump){var v=new float[1];Marshal.Copy(IntPtr.Add(m,0x54),v,0,1);v[0]=Math.Min(v[0]*1.5f,48f);Marshal.Copy(v,0,IntPtr.Add(m,0x54),1);}
+        return 1;
+    }
+    static int OriginalPunch(IntPtr m){Marshal.WriteInt32(m,0x104,Marshal.ReadInt32(m,0x104)+1);if((Marshal.ReadInt16(m,2)&4)!=0)set(m,Fall,0);return 0;}
+    static int OriginalKick(IntPtr m){Marshal.WriteInt32(m,0x104,Marshal.ReadInt32(m,0x104)+1);if(Marshal.ReadInt32(m,0x108)!=0)set(m,Land,0);return 0;}
+    static float OriginalFloor(float x,float y,float z,out IntPtr floor){floorQueries++;floor=floorExists?new IntPtr(0x1234):IntPtr.Zero;return floorHeight;}
+    static void OriginalStop(IntPtr m)
+    {
+        stopCalls++;Float(0x40,Float(0x7C));Float(0x48,0);Float(0x4C,0);Float(0x50,0);Float(0x54,0);
+    }
+    [MethodImpl(MethodImplOptions.NoInlining)] static void Tick(int id,IntPtr m,int command,uint requested)
+    {
+        if(command==0)punch(m);else if(command==1)moving(m);else if(command==2)kick(m);else if(command==3)set(m,requested,0);else if(command!=4)throw new InvalidOperationException("own managed tick failure");
+        C.Action=unchecked((uint)Marshal.ReadInt32(m,12));
+    }
+    static void Run(int command,uint requested=0,int? id=null){Tick(id??C.MarioId,memory,command,requested);}
+    static void KickTicks(int count){for(int i=0;i<count;i++)Run(2);}
+    static void Actor(uint action)
+    {
+        QuickSlash.Forget();Marshal.Copy(new byte[1024],0,memory,1024);
+        Plugin.Episodes=0;
+        floorExists=true;floorHeight=0;floorQueries=stopCalls=0;
+        C.Alive=true;C.Busy=C.Held=C.DamagePending=false;C.Input=true;C.hero=new Hero();C.Action=action;
+        Marshal.WriteInt32(memory,12,unchecked((int)action));Float(0x48,9);Float(0x4C,-6);Float(0x50,3);Float(0x54,16);
+        Marshal.WriteIntPtr(memory,0x70,new IntPtr(0x1234));Float(0x7C,0);
+    }
+    static void Confirm(uint action,string row){QuickSlash.Confirmed(C,action,row);}
+    static void ReadyFall()
+    {
+        Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(6);Check(Action==Fall,"Successful kick releases after 0.2 simulation seconds from the hit.");
+    }
+    static void StartKick(int airFrames=0,float startHeight=0)
+    {
+        Actor(Idle);Run(4);
+        if(airFrames>0){Run(3,Jump);for(int i=1;i<airFrames;i++)Run(4);}
+        Float(0x40,startHeight);Run(3,Kick);
+    }
+    static void Main()
+    {
+        var h=new Harmony("local.quick-slash-native-check");
+        string settingsPath=Path.Combine(Path.GetTempPath(),"quick-slash-check-"+Guid.NewGuid().ToString("N")+".cfg");
+        var settings=new ConfigFile(settingsPath,false);settings.SaveOnConfigSet=false;
+        QuickSlash.Bind(settings);
+        var delay=settings.Bind("Charms","QuickSlashAirRecoverySeconds",99f);
+        Check(delay.Value==0.2f,"Player-editable setting defaults to 0.2 seconds.");
+        Thunk("set_mario_action",(SetAction)OriginalSet);
+        Thunk("check_wall_kick",(Step)(m=>0));Thunk("act_air_hit_wall",(Step)(m=>0));Thunk("update_walking_speed",(Walking)(m=>{}));
+        Thunk("find_floor",(Floor)OriginalFloor);Thunk("stop_and_set_height_to_floor",(Walking)OriginalStop);
+        IntPtr p=Thunk("act_punching",(Step)OriginalPunch),q=Thunk("act_move_punching",(Step)OriginalPunch),r=Thunk("act_jump_kick",(Step)OriginalKick);
+        set=(SetAction)Marshal.GetDelegateForFunctionPointer(NativeSymbols.Map["set_mario_action"],typeof(SetAction));
+        punch=(Step)Marshal.GetDelegateForFunctionPointer(p,typeof(Step));moving=(Step)Marshal.GetDelegateForFunctionPointer(q,typeof(Step));kick=(Step)Marshal.GetDelegateForFunctionPointer(r,typeof(Step));
+        NativeMovementGates.Configure(typeof(TestNative));NativeMovementGates.Install("fixture",new IntPtr(1));
+        QuickSlash.Configure(typeof(TestNative),Plugin.Instance.Log);QuickSlash.Install("fixture",new IntPtr(1));
+        var tick=AccessTools.Method(typeof(Program),"Tick");
+        h.Patch(tick,prefix:new HarmonyMethod(typeof(NativeMovementGates),nameof(NativeMovementGates.BeforeTick)){priority=Priority.First+100},finalizer:new HarmonyMethod(typeof(NativeMovementGates),nameof(NativeMovementGates.AfterTick)));
+        h.Patch(tick,prefix:new HarmonyMethod(typeof(QuickSlash),nameof(QuickSlash.BeforeTick)){priority=Priority.First+50},finalizer:new HarmonyMethod(typeof(QuickSlash),nameof(QuickSlash.FinishTick)));
+        memory=Marshal.AllocHGlobal(1024);
+        try
+        {
+            foreach(uint action in new[]{Punch,Move})
+            {
+                Actor(action);Confirm(action,action==Punch?"punch":"move_punch");Run(action==Punch?0:1);
+                Check(Action==Idle&&Marshal.ReadInt32(memory,0x104)==0,"Confirmed ground hit cancels recovery before the original move executes again.");
+                Check(Plugin.Episodes==1,"One real neutral boundary makes the next repeated animation a fresh attack.");
+                Actor(action);Run(action==Punch?0:1);Check(Action==action&&Marshal.ReadInt32(memory,0x104)==1,"Miss does not reset ground recovery.");
+                Actor(action);C.hero.playerData.equippedCharm_32=false;Confirm(action,action==Punch?"punch":"move_punch");Run(action==Punch?0:1);Check(Action==action,"Unequipped charm is native.");
+                Actor(action);Confirm(action,action==Punch?"punch":"move_punch");Marshal.WriteInt16(memory,2,4);Run(action==Punch?0:1);Check(Action==Fall,"Leaving the real floor cannot be forced grounded.");
+            }
+            Actor(Punch);Confirm(Punch,"punch");C.DamagePending=true;Run(0);Check(Action==Punch,"Queued damage cancels a pending Quick Slash punch reset before the native hit runs.");
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(5);C.DamagePending=true;Run(2);Check(Action==Kick,"Queued damage clears a pending air-kick reset instead of erasing knockback.");C.DamagePending=false;KickTicks(12);Check(Action==Kick,"Canceled kick recovery is not replayed after damage.");
+            foreach(int earlyFrames in new[]{0,1,2,3})
+            {
+                StartKick(earlyFrames,earlyFrames==0?0:90);Float(0x40,140);Confirm(Kick,"jump_kick");Marshal.WriteInt16(memory,2,4);Run(2);
+                Check(Action==Idle&&Float(0x40)==0&&Float(0x4C)==0&&Float(0x54)==0,"Connected low kick from ground/first three jump steps immediately stops on its actual floor.");
+                Check(stopCalls==1&&floorQueries==1&&Marshal.ReadInt32(memory,0x104)==0,"Immediate ground recovery uses native floor/stop helpers before another kick step.");
+                Check((Marshal.ReadInt16(memory,2)&4)==0&&Plugin.Episodes==1,"Ground recovery clears stale off-floor input and resets the attack episode once.");
+                Check(C.hero.airDashed&&C.hero.doubleJumped&&C.hero.shadowDashTimer==1.25f,"Floor return adds no explicit air/shadow refund.");
+            }
+            StartKick();Float(0x40,50);KickTicks(12);Check(Action==Kick&&stopCalls==0&&Float(0x40)==50,"Unconnected short kick remains native.");
+            StartKick();Float(0x40,70);C.hero.playerData.equippedCharm_32=false;Confirm(Kick,"jump_kick");KickTicks(12);Check(Action==Kick&&stopCalls==0,"No low-kick return without Quick Slash.");
+            StartKick();Float(0x40,70);Confirm(Kick,"punch");KickTicks(12);Check(Action==Kick&&stopCalls==0,"Wrong move row does not earn a low-kick return.");
+            foreach(int lateFrames in new[]{4,12,60})
+            {StartKick(lateFrames,20);Float(0x40,30);Confirm(Kick,"jump_kick");KickTicks(5);Check(Action==Kick&&stopCalls==0,"Late/descending kick near ground is not reclassified as a short hop.");Run(2);Check(Action==Fall&&Float(0x40)==30,"Late kick keeps the accepted 0.2-second aerial recovery.");}
+            StartKick(1,121);Float(0x40,130);Confirm(Kick,"jump_kick");KickTicks(5);Check(Action==Kick&&stopCalls==0,"Recent takeoff at excessive height is an aerial kick.");Run(2);Check(Action==Fall,"Height-gated aerial kick still recovers normally.");
+            StartKick(1,120);Float(0x40,200);Confirm(Kick,"jump_kick");Run(2);Check(Action==Idle,"Short-hop start and return height limits include their boundaries.");
+            StartKick();Float(0x40,60);floorHeight=25;Confirm(Kick,"jump_kick");Run(2);Check(Action==Idle&&Float(0x40)==25&&Float(0x7C)==25,"Fresh floor query follows moved platform height instead of saved takeoff height.");
+            foreach(float unsafeHeight in new[]{201f,7000f,-1f,float.NaN})
+            {StartKick();Float(0x40,unsafeHeight);Confirm(Kick,"jump_kick");Run(2);Check(Action==Kick&&stopCalls==0,"No unsafe ground snap through missing/deep/above/invalid geometry.");KickTicks(5);Check(Action==Fall,"Unsafe snap falls back to ordinary aerial recovery.");}
+            StartKick();Float(0x40,60);floorExists=false;Confirm(Kick,"jump_kick");KickTicks(6);Check(Action==Fall&&stopCalls==0,"Missing floor at a ledge does not force grounding.");
+            StartKick();Float(0x40,60);Confirm(Kick,"jump_kick");QuickSlash.Forget();Run(2);Check(Action==Kick&&stopCalls==0,"F5/scene/handover cleanup clears short-hop credit.");
+            StartKick();Float(0x40,60);Confirm(Kick,"jump_kick");C.Held=true;Run(2);Check(Action==Kick&&stopCalls==0,"Control handover prevents the ground return.");
+            StartKick();Float(0x40,60);Confirm(Kick,"jump_kick");Run(2);Check(Action==Idle,"First short hop grounded.");Run(3,Kick);Float(0x40,60);Confirm(Kick,"jump_kick");Run(2);Check(Action==Idle&&stopCalls==2&&Plugin.Episodes==2,"Consecutive connected short hops each earn immediate ground neutral.");
+            Actor(Kick);KickTicks(60);Check(Action==Kick,"Missed airborne kick retains native commitment even after the timer length.");
+            Actor(Kick);KickTicks(30);Confirm(Kick,"jump_kick");KickTicks(5);Check(Action==Kick,"Timer begins on the hit, not kick startup, and waits the full 0.2 seconds.");
+            Float(0x48,13);Float(0x4C,-8);Float(0x50,4);Run(2);
+            Check(Action==Fall&&Float(0x48)==13&&Float(0x4C)==-8&&Float(0x50)==4,"Timed recovery preserves airborne momentum.");
+            Check(Plugin.Episodes==1,"Air recovery ends the old attack episode exactly once.");
+            Check(C.hero.airDashed&&C.hero.doubleJumped&&C.hero.shadowDashTimer==1.25f,"Recovery does not refund air moves or shadow recharge.");
+            foreach(float speed in new[]{-40f,0f,28f,29f,60f})
+            {
+                ReadyFall();Float(0x54,speed);Marshal.WriteInt16(memory,2,0x2000);Run(3,Dive);
+                Check(Action==(speed>28?Dive:Kick),"Recovered fall retains normal signed-speed kick/dive choice.");
+                Check(Marshal.ReadInt16(memory,2)==0x2000,"Native input edge is not rewritten.");
+                if(Action==Kick){KickTicks(12);Check(Action==Kick,"Each chained kick needs its own successful hit.");Confirm(Kick,"jump_kick");KickTicks(5);Check(Action==Kick,"New connected combo kick has its own full delay.");Run(2);Check(Action==Fall,"Second confirmed aerial kick also recovers after its delay.");}
+            }
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(3);Confirm(Kick,"jump_kick");KickTicks(2);Check(Action==Kick,"Repeated contact cannot release the kick prematurely.");Run(2);Check(Action==Fall,"A second enemy hit in one kick does not restart the first-hit timer.");
+            delay.Value=0.4f;Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(11);Check(Action==Kick,"Longer player setting delays recovery.");Run(2);Check(Action==Fall,"0.4 setting recovers after twelve native steps.");
+            delay.Value=0.1f;Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(2);Check(Action==Kick,"Shorter setting still waits.");Run(2);Check(Action==Fall,"0.1 setting recovers after three native steps.");
+            delay.Value=0f;Actor(Kick);Confirm(Kick,"jump_kick");Run(2);Check(Action==Fall,"Zero is an explicit adjustable next-step recovery.");
+            foreach(float invalid in new[]{-1f,float.NaN,float.PositiveInfinity,float.NegativeInfinity})
+            {delay.Value=invalid;Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(5);Check(Action==Kick,"Invalid setting uses safe default delay.");Run(2);Check(Action==Fall,"Invalid setting falls back to 0.2 seconds.");}
+            delay.Value=0.35f;settings.Save();delay.Value=0.7f;settings.Reload();Check(delay.Value==0.35f,"Editable delay round-trips through normal BepInEx settings.");delay.Value=0.2f;
+            ReadyFall();Marshal.WriteInt16(memory,2,0);Run(3,Dive);Check(Action==Dive,"No attack-edge hijack of unrelated forced dive.");
+            ReadyFall();Run(3,Pound);Check(Action==Pound,"Recovered fall can ground pound normally.");Run(3,LongJump);Check(Action==LongJump,"Existing cloak long-jump path remains available.");
+            Actor(Kick);Confirm(Kick,"jump_kick");Marshal.WriteInt32(memory,0x108,1);Run(2);Check(Action==Idle,"Successful short-hop kick returns to grounded neutral on real landing.");
+            ReadyFall();Run(3,Land);Check(Action==Idle,"Recovered short-hop landing is neutral too.");
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(3);C.hero.playerData.equippedCharm_32=false;KickTicks(6);C.hero.playerData.equippedCharm_32=true;KickTicks(6);Check(Action==Kick,"Live unequip cancels pending recovery without restoring stale credit.");
+            foreach(string row in new[]{"dive","dive_slide","slide_kick","ground_pound","punch"})
+            {Actor(Kick);Confirm(Kick,row);KickTicks(12);Check(Action==Kick,"Unrelated move rows do not grant kick recovery.");}
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(3);QuickSlash.Forget();KickTicks(12);Check(Action==Kick,"Scene/F5/handover teardown cancels the pending timer.");
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(3);C.Held=true;KickTicks(12);Check(Action==Kick,"Native control ownership is preserved.");
+            Actor(Kick);Confirm(Kick,"jump_kick");for(int i=0;i<20;i++)Run(2,id:C.MarioId+1);Check(Action==Kick,"Other native actor cannot consume or advance the recovery timer.");KickTicks(5);Check(Action==Kick,"Other actor ticks did not advance the owned timer.");Run(2);Check(Action==Fall,"Own actor still recovers on its sixth step.");
+            Actor(Kick);Confirm(Kick,"jump_kick");KickTicks(3);Run(3,Dive);C.Action=Kick;Marshal.WriteInt32(memory,12,unchecked((int)Kick));KickTicks(12);Check(Action==Kick,"Unrelated action transitions clear the old timer.");
+            ReadyFall();try{Run(99);}catch(InvalidOperationException){}set(memory,Dive,0);Check(Action==Dive,"Both native policy scopes restore after exceptions.");
+            Console.WriteLine("PASS native short-hop recovery: takeoff age AND start height, immediate real-floor idle, moving/missing/deep floors, misses, unequip, handover/reset and consecutive low kicks.");
+            Console.WriteLine("PASS real native detours and Harmony scopes: late aerial kicks retain first-hit 0.2-second delay, editable persisted delay/invalid fallback, momentum, chained kick/dive/pound choices, real landings, ownership/other-ID gates and cleanup.");
+            Console.WriteLine("PASS no recovery on misses/unrelated moves, no fake floor, air-move or shadow-timer refund. Own native ABI fixture only; no game/ROM/window initialized.");
+        }
+        finally
+        {
+            h.UnpatchSelf();QuickSlash.Dispose();NativeMovementGates.Dispose();Marshal.FreeHGlobal(memory);
+            foreach(IntPtr allocation in allocations)VirtualFree(allocation,UIntPtr.Zero,0x8000);
+            if(File.Exists(settingsPath))File.Delete(settingsPath);
+            GC.KeepAlive(callbacks);
+        }
+    }
+}

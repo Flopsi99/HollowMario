@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion>
+    <AssemblyName>HollowMario.Host.Unity</AssemblyName>
+    <HollowKnightDir Condition="'$(HollowKnightDir)'==''">E:\SteamLibrary\steamapps\common\Hollow Knight</HollowKnightDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/HollowMario.Host.Core.csproj" />
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(HollowKnightDir)/hollow_knight_Data/Managed/UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion>
+    <AssemblyName>HollowMario.Host.Core</AssemblyName><AllowUnsafeBlocks>true</AllowUnsafeBlocks><DefineConstants>DOUBLE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../Setup/Core/HollowMario.Setup.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../World/Terrain/ConnectedTerrainMesh.cs" Link="Terrain/ConnectedTerrainMesh.cs" />
+    <Compile Include="../../ThirdParty/LibTessDotNet/**/*.cs" Link="Tess/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion><Prefer32Bit>false</Prefer32Bit>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><NoWarn>CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs.test" />
+    <Compile Include="..\..\Combat\DiveSlideFollowup.cs" Link="DiveSlideFollowup.cs" />
+    <Compile Include="..\..\Combat\NativeDamageTimer.cs" Link="NativeDamageTimer.cs" />
+    <Compile Include="..\..\Presentation\WeakSlideFlash.cs" Link="WeakSlideFlash.cs" />
+  </ItemGroup>
+  <Import Project="../PolicyCheckReferences.props" />
+</Project>

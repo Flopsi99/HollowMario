@@ -1,0 +1,33 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using BepInEx.Configuration;
+using BepInEx.Logging;
+using HarmonyLib;
+class DebugSettingsCheck
+{
+ const BindingFlags All=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+ static void Require(bool value,string why){if(!value)throw new Exception(why);}
+ static void Main(string[] args){
+  var mod=Assembly.LoadFrom(TestEnvironment.CompanionPath);var settings=mod.GetType("HollowMario.DebugSettings",true);
+  string path=Path.Combine(Path.GetTempPath(),"hollowmario-debug-check-"+Guid.NewGuid().ToString("N")+".cfg");var cfg=new ConfigFile(path);var h=new Harmony("hollowmario.central-debug-check");
+  var own=new ManualLogSource("owned-debug-check");var other=new ManualLogSource("other-debug-check");Func<string,bool> enabled=n=>(bool)settings.GetProperty(n,All).GetValue(null,null);
+  try{
+   settings.GetMethod("Arm",All).Invoke(null,new object[]{h,cfg,own});
+   Require(enabled("Enabled")&&enabled("RoomReset")&&enabled("BenchReturn")&&!enabled("ShowBossHp")&&!enabled("ShowHitboxes")&&!enabled("VerboseLogging"),"Release defaults preserve recovery keys and keep diagnostic visuals/logs off");
+   string[] keys={"Enabled","EnableRoomReset","EnableBenchReturn","ShowBossHp","ShowHitboxes","VerboseLogging","LogPresentationHitches","ShowEngineOverlay"};
+   string text=File.ReadAllText(path);Require(keys.All(k=>text.Contains(k+" = "))&&text.Split(new[]{"[Debug]"},StringSplitOptions.None).Length==2,"All current toggles use one Debug section");
+   cfg.Bind("Debug","VerboseLogging",false,"").Value=true;cfg.Bind("Debug","ShowBossHp",false,"").Value=true;cfg.Bind("Debug","ShowHitboxes",false,"").Value=true;
+   var master=cfg.Bind("Debug","Enabled",true,"");master.Value=false;Require(new[]{"RoomReset","BenchReturn","ShowBossHp","ShowHitboxes","VerboseLogging","PresentationTiming"}.All(n=>!enabled(n)),"Master gates optional debug features");
+   TestEnvironment.Messages.Clear();own.LogInfo("hidden");own.LogDebug("hidden");own.LogWarning("warning");own.LogError("error");other.LogInfo("visible");own.LogInfo("melty test: pass");
+   Require(TestEnvironment.Messages.Count==4&&!TestEnvironment.Messages.Any(m=>m.EndsWith("hidden")),"Only optional own logs suppressed; warnings, errors, other mods and test reports retained");
+   master.Value=true;foreach(var row in new[]{new[]{"EnableRoomReset","RoomReset"},new[]{"EnableBenchReturn","BenchReturn"},new[]{"ShowBossHp","ShowBossHp"},new[]{"ShowHitboxes","ShowHitboxes"},new[]{"VerboseLogging","VerboseLogging"}}){var entry=cfg.Bind("Debug",row[0],true,"");entry.Value=false;Require(!enabled(row[1]),"Individual switch: "+row[0]);entry.Value=true;}
+   master.Value=false;cfg.Save();cfg.SaveOnConfigSet=false;master.Value=true;cfg.Reload();Require(!enabled("Enabled"),"Master round-trips through config");
+   var plugin=mod.GetType("HollowMario.Plugin",true);var hotkeys=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("Update",All));
+   foreach(string name in new[]{"get_Enabled","get_RoomReset","get_BenchReturn"})Require(hotkeys.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==settings&&((MethodInfo)i.operand).Name==name),"Hotkey gate: "+name);
+   Require(!PatchProcessor.GetOriginalInstructions(plugin.GetMethod("ReturnToRoomEntry",All)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==settings),"Automatic recovery ignores debug switches");
+   Console.WriteLine("PASS unified debug configuration, release defaults, master/individual controls, scoped logging, persistence and hotkey/automatic-recovery boundaries.");
+  }finally{h.UnpatchSelf();if(File.Exists(path))File.Delete(path);}
+ }
+}

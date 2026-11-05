@@ -1,0 +1,16 @@
+[
+  {
+    "name": "RecoveryTimingChecks",
+    "kind": "native",
+    "source": ".artifacts/RecoveryTimingChecks.cs",
+    "reason": "The former frozen hazard-recovery hold was intentionally replaced with a moving recovery into idle.",
+    "replacement": "HazardRecoveryMotionChecks"
+  },
+  {
+    "name": "FilmingChecks",
+    "kind": "fixture",
+    "source": ".artifacts/FilmingChecks.cs",
+    "reason": "The filming utility was renamed and generalized; these same PlayerData/save/menu assertions are retained by DebugToolsChecks.",
+    "replacement": "DebugToolsChecks"
+  }
+]

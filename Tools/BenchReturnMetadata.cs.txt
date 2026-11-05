@@ -1,0 +1,50 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.Serialization;
+using HarmonyLib;
+
+class BenchReturnMetadata
+{
+    const BindingFlags All=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static;
+    static void Check(bool value,string why){if(!value)throw new Exception(why);}
+    static void Main(string[] args)
+    {
+        string game=Path.GetDirectoryName(Path.GetDirectoryName(TestEnvironment.Managed));
+        Run(args[0],game);
+    }
+    static void Run(string root,string game)
+    {
+        Assembly original=Assembly.LoadFrom(game+@"\hollow_knight_Data\Managed\Assembly-CSharp.dll");
+        Assembly companion=Assembly.LoadFrom(TestEnvironment.CompanionPath);
+        Type gm=original.GetType("GameManager",true),pd=original.GetType("PlayerData",true);
+        Type coordinator=companion.GetType("HollowMario.BenchReturn",true);
+        Type api=coordinator.GetNestedType("NativeApi",All);
+        object sample=FormatterServices.GetUninitializedObject(gm),data=FormatterServices.GetUninitializedObject(pd);
+        gm.GetField("playerData",All).SetValue(sample,data);
+        gm.GetField("gameState",All).SetValue(sample,Enum.ToObject(gm.GetField("gameState",All).FieldType,4));
+        pd.GetField("respawnScene",All).SetValue(data,"FixtureBench");
+        pd.GetField("respawnMarkerName",All).SetValue(data,"FixtureMarker");
+        object adapter=Activator.CreateInstance(api,All,null,new[]{sample},null);
+        Check((string)api.GetProperty("Destination",All).GetValue(adapter,null)=="FixtureBench"&&(string)api.GetProperty("Marker",All).GetValue(adapter,null)=="FixtureMarker","Read the exact data instance native respawn uses.");
+        Check(!(bool)api.GetProperty("Busy",All).GetValue(adapter,null),"Native idle-state fields must resolve.");
+        object info=api.GetMethod("BuildInfo",All).Invoke(adapter,new object[]{"FixtureBench"});
+        Type load=info.GetType();
+        Check((string)load.GetField("SceneName",All).GetValue(info)=="FixtureBench"&&(string)load.GetField("EntryGateName",All).GetValue(info)=="","Native saved-scene and bench-entry fields.");
+        Check(!(bool)load.GetField("PreventCameraFadeOut",All).GetValue(info)&&(bool)load.GetField("WaitForSceneTransitionCameraFade",All).GetValue(info),"Live return must perform and wait for the normal fade.");
+        Check((bool)load.GetField("AlwaysUnloadUnusedAssets",All).GetValue(info)&&!(bool)load.GetField("IsFirstLevelForPlayer",All).GetValue(info)&&Convert.ToInt32(load.GetField("Visualization",All).GetValue(info))==0,"Native respawn load settings.");
+        Check(gm.GetProperty("RespawningHero",All).GetSetMethod(true)!=null,"Native respawn property must be writable.");
+        var old=PatchProcessor.GetOriginalInstructions(gm.GetMethod("ReadyForRespawn",All)).ToList();
+        int fade=old.FindIndex(i=>i.opcode==OpCodes.Stfld&&i.operand is FieldInfo&&((FieldInfo)i.operand).Name=="PreventCameraFadeOut");
+        Check(fade>0&&old[fade-1].opcode==OpCodes.Ldc_I4_1,"Confirmed native ReadyForRespawn suppresses the fade, as expected after death.");
+        Type plugin=companion.GetType("HollowMario.Plugin",true);
+        var route=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("BackToBench",All)).ToList();
+        Check(route.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==coordinator&&((MethodInfo)i.operand).Name=="Request"),"F9 must use the debounced coordinator.");
+        Check(!route.Any(i=>i.operand is string&&new[]{"HazardRespawn","ReadyForRespawn"}.Contains((string)i.operand)),"No old hazard fallback or direct post-death path.");
+        var prepare=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("PrepareBenchReturn",All)).ToList();
+        Check(prepare.Any(i=>Equals(i.operand,"Deactivate"))&&!prepare.Any(i=>Equals(i.operand,"SetWanted")),"Hand over to native Knight without changing character preference.");
+        Console.WriteLine("PASS installed GameManager/PlayerData/scene-info metadata, exact saved-data instance, live fade configuration, native post-death difference and compiled F9/handover routing. No load, respawn, save, death or game was executed.");
+    }
+}

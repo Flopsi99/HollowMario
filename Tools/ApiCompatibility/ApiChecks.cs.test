@@ -1,0 +1,202 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using BepInEx.Configuration;
+using BepInEx.Logging;
+using HollowMario.ApiRuntime;
+using HarmonyLib;
+using Mono.Cecil;
+
+internal static class ApiChecks
+{
+    private static int assertions;
+    private static void Check(bool result, string message)
+    { assertions++; if (!result) throw new Exception(message); }
+    [MethodImpl(MethodImplOptions.NoInlining)] private static int Sum(int value) => value + 2;
+    private static void Prefix(ref int value) { value *= 2; }
+    private static void Postfix(ref int __result) { __result += 3; }
+    private static void ObserveTick() { }
+    private static void ObserveArgs(object[] __args) { GC.KeepAlive(__args); }
+    private static void PatchLive(Harmony harmony,MethodBase target,HarmonyMethod prefix,HarmonyMethod finalizer=null)
+    {
+        // CLR may have inlined earlier Harmony.Patch calls into Main before the
+        // adapter detour existed. Reflection exercises its CURRENT entry point,
+        // matching Unity Mono's non-inlined registration path.
+        var signature=new[]{typeof(MethodBase),typeof(HarmonyMethod),typeof(HarmonyMethod),typeof(HarmonyMethod),typeof(HarmonyMethod),typeof(HarmonyMethod)};
+        typeof(Harmony).GetMethod("Patch",signature).Invoke(harmony,new object[]{target,prefix,null,null,finalizer,null});
+    }
+    private struct MoveInput { internal float Stick; }
+    private sealed class OwnHost
+    {
+        internal readonly object Sync = new object();
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal void Tick(int id, ref MoveInput input, ref int output)
+        { lock (Sync) { if (id < 0) throw new InvalidOperationException("Owned fixture error"); output = id + (int)input.Stick; } }
+    }
+    private static object observedHost;
+    private static bool ChangeInput(object __instance, object[] __args)
+    {
+        observedHost = __instance;
+        int id = (int)__args[0];
+        var input = (MoveInput)__args[1]; input.Stick = 7; __args[1] = input; __args[0] = id + 1;
+        return id != 0;
+    }
+
+    private static int Main(string[] args)
+    {
+        try
+        {
+            string package = Path.GetFullPath(args[0]), game = Path.GetFullPath(args[1]);
+            string scratch = Path.Combine(args.Length > 2 ? args[2] : AppDomain.CurrentDomain.BaseDirectory, "checks-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(scratch);
+            var delivered = new List<string>();
+            ApiContext.Initialize(package, game, (level, text) => delivered.Add(text));
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            string old = Path.Combine(scratch, "injection.cfg"), file = Path.Combine(scratch, "api.cfg");
+            string oldText = "[Debug]\nEnabled = false\nShowBossHp = false\n[Charms]\nQuickSlashAirRecoverySeconds = 0.37\n[Super Mario 64]\nRomPath = C:\\Own games\\Mario.z64\n[Unrelated]\nKeep = yes\n";
+            File.WriteAllText(old, oldText);
+            var settings = new ConfigFile(file, old);
+            Check(!settings.Bind("Debug", "Enabled", true, "").Value, "Imported master flag.");
+            Check(!settings.Bind("Debug", "ShowBossHp", true, "").Value, "Imported HUD flag.");
+            var timer = settings.Bind("Charms", "QuickSlashAirRecoverySeconds", .2f, "");
+            Check(Math.Abs(timer.Value - .37f) < .0001f, "Invariant timer import.");
+            timer.Value = .23f;
+            Check(ReferenceEquals(timer, settings.Bind("Charms", "QuickSlashAirRecoverySeconds", .9f, "")), "Bind retains the live entry.");
+            Check(settings.Bind("Super Mario 64", "RomPath", "", "").Value == "C:\\Own games\\Mario.z64", "ROM path characters retained.");
+            var roundtrip = new ConfigFile(file);
+            Check(Math.Abs(roundtrip.Bind("Charms", "QuickSlashAirRecoverySeconds", .9f, "").Value - .23f) < .0001f, "Timer survives reload.");
+            Check(File.ReadAllText(file).Contains("Keep = yes"), "Unknown settings preserved.");
+            Check(File.ReadAllText(old) == oldText, "Injection settings never modified.");
+            for (int save = 0; save < 30; save++)
+            { timer.Value = save / 100f; settings.Save(); }
+            Check(new ConfigFile(file).Bind("Charms", "QuickSlashAirRecoverySeconds", .9f, "").Value == .29f,
+                "Repeated replacement on the actual test drive retains the latest value.");
+            string beforeRejectedWrite = File.ReadAllText(file);
+            File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+            bool rejected = false;
+            try { settings.Save(); } catch (System.ComponentModel.Win32Exception) { rejected = true; }
+            finally { File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly); }
+            Check(rejected && File.ReadAllText(file) == beforeRejectedWrite, "Rejected promotion leaves the existing configuration intact.");
+            settings.Save();
+            Check(File.ReadAllText(file) == beforeRejectedWrite, "Saving recovers after a rejected promotion.");
+            string malformed = Path.Combine(scratch, "bad.cfg");
+            File.WriteAllText(malformed, "[Debug]\nEnabled = potato\n");
+            Check(new ConfigFile(malformed).Bind("Debug", "Enabled", true, "").Value, "Invalid setting safely defaults.");
+
+            var harmony = new Harmony("hollowmario.api.check");
+            var sum = typeof(ApiChecks).GetMethod("Sum", BindingFlags.NonPublic | BindingFlags.Static);
+            Check(Sum(4) == 6, "Unpatched baseline.");
+            harmony.Patch(sum, prefix: new HarmonyMethod(typeof(ApiChecks), "Prefix"), postfix: new HarmonyMethod(typeof(ApiChecks), "Postfix"));
+            Check(Sum(4) == 13, "API dependencies execute actual Harmony prefix and postfix.");
+            harmony.UnpatchSelf();
+            Check(Sum(4) == 6, "Actual hook detaches.");
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, request) =>
+            {
+                string name = new AssemblyName(request.Name).Name + ".dll";
+                string candidate = Path.Combine(package, name);
+                if (!File.Exists(candidate)) candidate = Path.Combine(game, "hollow_knight_Data", "Managed", name);
+                return File.Exists(candidate) ? Assembly.LoadFrom(candidate) : null;
+            };
+            var companion = Assembly.LoadFrom(Path.Combine(package, "HollowMario.dll"));
+            Type debug = companion.GetType("HollowMario.DebugSettings", true);
+            var debugFlags=BindingFlags.Static|BindingFlags.NonPublic;
+            var freshDebug=new ConfigFile(Path.Combine(scratch,"fresh-debug.cfg"));
+            debug.GetMethod("Bind",debugFlags).Invoke(null,new object[]{freshDebug});
+            Check(!(bool)debug.GetProperty("VerboseLogging",debugFlags).GetValue(null),"New installs default to quiet diagnostic logging.");
+            Check((bool)debug.GetProperty("RoomReset",debugFlags).GetValue(null)
+                &&(bool)debug.GetProperty("BenchReturn",debugFlags).GetValue(null),"Quiet logging leaves F5/F9 enabled.");
+            Check(!(bool)debug.GetProperty("ShowBossHp",debugFlags).GetValue(null)
+                &&!(bool)debug.GetProperty("ShowHitboxes",debugFlags).GetValue(null),"Diagnostic HUDs still start off.");
+            freshDebug.Bind("Debug","VerboseLogging",false,"").Value=true;
+            debug.GetMethod("Bind",debugFlags).Invoke(null,new object[]{new ConfigFile(Path.Combine(scratch,"fresh-debug.cfg"))});
+            Check((bool)debug.GetProperty("VerboseLogging",debugFlags).GetValue(null)
+                &&(bool)debug.GetProperty("PresentationTiming",debugFlags).GetValue(null),"Existing verbose choice and performance diagnostics survive quiet defaults and reload.");
+            var log = new ManualLogSource("API debug checks");
+            var other = new ManualLogSource("Other mod");
+            var quiet = new ConfigFile(Path.Combine(scratch, "debug.cfg"));
+            quiet.Bind("Debug", "Enabled", false, "");
+            debug.GetMethod("Arm", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { harmony, quiet, log });
+            delivered.Clear();
+            log.LogInfo("hidden"); other.LogInfo("visible other source"); log.LogWarning("visible warning"); log.LogMessage("visible message"); log.LogInfo("melty test: visible report");
+            Check(!delivered.Any(x => x.EndsWith("hidden")), "Shared debug filter suppresses own optional log.");
+            Check(delivered.Count == 4, "Other mods, warnings, messages and test reports retained.");
+            Check(!(bool)debug.GetProperty("RoomReset", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null), "Debug master gates F5.");
+            Check(!(bool)debug.GetProperty("BenchReturn", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null), "Debug master gates F9.");
+            harmony.UnpatchSelf();
+
+            var hostAssembly = Assembly.LoadFrom(Path.Combine(package, "MarioHollow-native", "HollowMario.Host.Integration.dll"));
+            var tick = hostAssembly.GetType("MarioHollow.Native", true).GetMethod("sm64_mario_tick", BindingFlags.Public | BindingFlags.Static);
+            harmony.Patch(tick, prefix: new HarmonyMethod(typeof(ApiChecks), "ObserveTick"));
+            Check(Harmony.GetPatchInfo(tick).Owners.Contains(harmony.Id), "Real locked/ref-struct native tick accepts a hook without engine execution.");
+            Type adapter = companion.GetType("HollowMario.ApiArgumentAdapter", true);
+            MethodInfo wrap = adapter.GetMethod("Wrap", BindingFlags.Static | BindingFlags.NonPublic);
+            var wrapped = (MethodInfo)wrap.Invoke(null, new object[] { tick, typeof(ApiChecks).GetMethod("ObserveArgs", BindingFlags.Static | BindingFlags.NonPublic) });
+            harmony.Patch(tick, prefix: new HarmonyMethod(wrapped));
+            Check(Harmony.GetPatchInfo(tick).Prefixes.Count == 2, "Real ref-struct tick accepts the Wing Cap argument-array prefix shape.");
+            harmony.UnpatchSelf();
+
+            var ownHost = new OwnHost();
+            var ownTick = typeof(OwnHost).GetMethod("Tick", BindingFlags.NonPublic | BindingFlags.Instance);
+            var change = typeof(ApiChecks).GetMethod("ChangeInput", BindingFlags.NonPublic | BindingFlags.Static);
+            var ownWrapper = (MethodInfo)wrap.Invoke(null, new object[] { ownTick, change });
+            harmony.Patch(ownTick, prefix: new HarmonyMethod(ownWrapper));
+            var ownInput = new MoveInput { Stick = 1 }; int output = 99, id = 5;
+            ownHost.Tick(id, ref ownInput, ref output);
+            Check(ReferenceEquals(observedHost, ownHost) && output == 13 && ownInput.Stick == 7 && id == 5,
+                "Typed adapter preserves instance, changes by-value arguments and writes ref inputs back.");
+            output = 99; ownHost.Tick(0, ref ownInput, ref output);
+            Check(output == 99, "Boolean callback still skips the original tick.");
+            bool propagated = false;
+            try { ownHost.Tick(-2, ref ownInput, ref output); } catch (InvalidOperationException) { propagated = true; }
+            Check(propagated && !System.Threading.Monitor.IsEntered(ownHost.Sync), "Native-wrapper-shaped lock still releases and original failures propagate.");
+            harmony.UnpatchSelf();
+
+            adapter.GetMethod("Install", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+            foreach (string type in new[] { "WingCap", "Swimming", "DoubleJump", "PoundLongJump" })
+            {
+                string callbackName = type == "WingCap" ? "BeforeTick" : type == "Swimming" ? "WaterInputs" : "TickPrefix";
+                MethodInfo callback = companion.GetType("HollowMario." + type, true).GetMethod(callbackName, BindingFlags.Static | BindingFlags.NonPublic);
+                PatchLive(harmony,tick,new HarmonyMethod(callback));
+            }
+            foreach (string type in new[] { "MapFallFlourish", "MushroomFallGuard", "NativeMovementGates", "QuickSlash" })
+            {
+                Type policy = companion.GetType("HollowMario." + type, true);
+                MethodInfo prefix = policy.GetMethod("BeforeTick", BindingFlags.Static | BindingFlags.NonPublic);
+                string finalizerName = type == "NativeMovementGates" ? "AfterTick" : type == "QuickSlash" ? "FinishTick" : "Finish";
+                MethodInfo finalizer = policy.GetMethod(finalizerName, BindingFlags.Static | BindingFlags.NonPublic);
+                PatchLive(harmony,tick,new HarmonyMethod(prefix),new HarmonyMethod(finalizer));
+            }
+            Check(Harmony.GetPatchInfo(tick).Prefixes.Count == 8, "All real movement prefix shapes coexist on the actual host tick.");
+            Check(Harmony.GetPatchInfo(tick).Finalizers.Count == 4, "All real movement finalizer shapes coexist on the actual host tick.");
+            harmony.UnpatchSelf();
+            new Harmony("gg.melty.hollowmario.api-arguments").UnpatchSelf();
+
+            VerifyHost(package);
+            using (var api = AssemblyDefinition.ReadAssembly(Path.Combine(package, "HollowMario.dll")))
+            {
+                Check(!api.MainModule.AssemblyReferences.Any(x => x.Name == "BepInEx"), "API companion has no BepInEx dependency.");
+                Check(api.MainModule.Types.Count(t => t.BaseType != null && t.BaseType.FullName == "Modding.Mod") == 1, "Exactly one community API mod entry.");
+            }
+            Check(!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "BepInEx"), "Checks run without the BepInEx assembly.");
+            Console.WriteLine("PASS: " + assertions + " API settings, actual hook, entry and independent host dependency checks. No game/ROM/window was started.");
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void VerifyHost(string package)
+    {
+        foreach (string file in new[] { "HollowMario.Host.Integration.dll", "HollowMario.Host.Core.dll", "HollowMario.Host.Unity.dll" })
+        using (var host = AssemblyDefinition.ReadAssembly(Path.Combine(package, "MarioHollow-native", file)))
+        {
+            Check(!host.MainModule.AssemblyReferences.Any(a => a.Name == "MarioHollow"), "Independent host has no retired assembly dependency: " + file);
+            Check(host.Name.Name == Path.GetFileNameWithoutExtension(file), "Independent assembly identity: " + file);
+        }
+        Check(!AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "MarioHollow"), "Retired assembly never loaded.");
+    }
+}

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Prefer32Bit>false</Prefer32Bit><EnableDefaultCompileItems>false</EnableDefaultCompileItems><NoWarn>CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs.test" />
+    <Compile Include="..\..\Caps\CapAccess.cs" Link="CapAccess.cs" />
+    <Compile Include="..\..\Charms\QuickSlash.cs" Link="QuickSlash.cs" />
+    <Compile Include="..\..\Movement\NativeMovementGates.cs" Link="NativeMovementGates.cs" />
+    <Compile Include="..\..\Movement\GroundStepEdges.cs" Link="GroundStepEdges.cs" />
+    <Compile Include="..\..\Charms\NoBonk.cs" Link="NoBonk.cs" />
+    <Compile Include="..\..\Movement\ThinPlatformLedges.cs" Link="ThinPlatformLedges.cs" />
+    <Compile Include="..\..\Movement\MovementUnlocks.cs" Link="MovementUnlocks.cs" />
+    <Compile Include="..\..\Charms\MovementUnlocks.Charms.cs" Link="MovementUnlocks.Charms.cs" />
+  </ItemGroup>
+  <Import Project="../PolicyCheckReferences.props" />
+</Project>

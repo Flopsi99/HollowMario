@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion><Prefer32Bit>false</Prefer32Bit>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ApiPackageDir Condition="'$(ApiPackageDir)' == ''">$(MSBuildThisFileDirectory)..\..\.artifacts\independent-host\services</ApiPackageDir>
+    <ManagedDir>E:\SteamLibrary\steamapps\common\Hollow Knight\hollow_knight_Data\Managed</ManagedDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ApiChecks.cs.test" />
+    <Reference Include="HollowMario.ApiRuntime"><HintPath>$(ApiPackageDir)\HollowMario.ApiRuntime.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(ApiPackageDir)\0Harmony.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil"><HintPath>$(ManagedDir)\Mono.Cecil.dll</HintPath></Reference>
+    <Reference Include="MonoMod.Utils"><HintPath>$(ManagedDir)\MonoMod.Utils.dll</HintPath></Reference>
+    <Reference Include="MonoMod.RuntimeDetour"><HintPath>$(ManagedDir)\MonoMod.RuntimeDetour.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,159 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Reflection.Emit;
+using System.Runtime.InteropServices;
+using HarmonyLib;
+using BepInEx.Logging;
+
+class NativeMetadata
+{
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void StopAtFloor(IntPtr mario);
+    [System.Runtime.InteropServices.DllImport("kernel32",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]
+    static extern IntPtr LoadLibrary(string path);
+    static void Main(string[] args)
+    {
+        string game=Path.GetDirectoryName(Path.GetDirectoryName(TestEnvironment.Managed));
+        Run(args[0], game);
+    }
+    static void Require(bool condition,string why){if(!condition)throw new Exception(why);}
+    static void Run(string source,string game)
+    {
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+        Assembly host=Assembly.LoadFrom(TestEnvironment.HostPath);
+        Assembly companion=Assembly.LoadFrom(TestEnvironment.CompanionPath);
+        Type controller=host.GetType("MarioHollow.MarioController",true);
+        Type plugin=companion.GetType("HollowMario.Plugin",true);
+        Type followType=companion.GetType("HollowMario.KnightResetFollow",true);
+        object first=FormatterServices.GetUninitializedObject(controller);
+        controller.GetField("MarioId",all).SetValue(first,-1);
+        controller.GetField("Instance",all).SetValue(null,first);
+        object instance=FormatterServices.GetUninitializedObject(plugin);
+        var logger=new ManualLogSource("room-entry-check");
+
+        object follow=Activator.CreateInstance(followType,all,null,new object[]{logger,controller,2000},null);
+        Require((bool)followType.GetProperty("Armed",all).GetValue(follow,null),"Installed reset metadata not armed.");
+        var harmony=new Harmony("local.room-entry-default-check");
+        plugin.GetField("controllerType",all).SetValue(instance,controller);
+        plugin.GetField("knightFollow",all).SetValue(instance,follow);
+        plugin.GetField("harmony",all).SetValue(instance,harmony);
+        plugin.GetField("Log",all).SetValue(instance,logger);
+        plugin.GetMethod("ArmMarioDefault",all).Invoke(instance,null);
+        Require((bool)controller.GetField("Wanted",all).GetValue(first),"Existing controller must initially select Mario.");
+        MethodInfo awake=controller.GetMethod("Awake",all);
+        var info=Harmony.GetPatchInfo(awake);
+        Require(info!=null&&info.Postfixes.Any(p=>p.owner==harmony.Id&&p.PatchMethod.Name=="DefaultMarioPostfix"),"Installed Awake hook failed.");
+        controller.GetField("Wanted",all).SetValue(first,false);
+        followType.GetMethod("BeginRoomEntry",all).Invoke(follow,new object[]{77});
+        followType.GetMethod("BeginRoomEntry",all).Invoke(follow,new object[]{78});
+        Require(!(bool)controller.GetField("Wanted",all).GetValue(first),"A room must not undo the player's Knight choice.");
+        object second=FormatterServices.GetUninitializedObject(controller);
+        controller.GetField("MarioId",all).SetValue(second,-1);
+        plugin.GetMethod("DefaultMarioPostfix",all).Invoke(null,new[]{second});
+        Require((bool)controller.GetField("Wanted",all).GetValue(second),"Future controller must default to Mario too.");
+        MethodInfo toggle=controller.GetMethod("Toggle",all);
+        Require(toggle!=null&&Harmony.GetPatchInfo(toggle)==null&&Harmony.GetPatchInfo(controller.GetMethod("SetWanted",all))==null,"New host owns M selection without companion toggle overrides.");
+        var reset=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("ResetRoom",all));
+        Require(!reset.Any(i=>i.opcode==OpCodes.Ldstr&&(Equals(i.operand,"entryGateName")||Equals(i.operand,"HazardRespawn")||Equals(i.operand,"ChangeToScene"))),"F5 must not use mutable checkpoint/reload fallback.");
+        Require(reset.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).Name=="ReturnToRoomEntry"),"F5 not routed to fixed entry.");
+        var shared=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("ReturnToRoomEntry",all));
+        Require(shared.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==followType&&((MethodInfo)i.operand).Name=="ReturnToRoomEntry"),"Shared teleport must use the existing fixed point owner.");
+        Require(shared.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType.Name=="NativeCharmEffects"&&((MethodInfo)i.operand).Name=="Activated"),"Shared reset must retain native charm bindings without another activation.");
+        Type guard=companion.GetType("HollowMario.VoidGuard",true);
+        var rescue=PatchProcessor.GetOriginalInstructions(guard.GetMethod("ReturnToEntry",all));
+        Require(rescue.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==plugin&&((MethodInfo)i.operand).Name=="ReturnToRoomEntry"),"Automatic rescue must use the exact shared F5 teleport/cleanup.");
+        Require(guard.GetField("safeSpot",all)==null&&guard.GetField("haveSafe",all)==null,"Rolling last-floor destinations must be removed.");
+        foreach(string method in new[]{"Tick","LongFall","ReturnToEntry"})
+            Require(!PatchProcessor.GetOriginalInstructions(guard.GetMethod(method,all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType.Name=="MetalCap"&&((MethodInfo)i.operand).Name=="ReturnFromVoid"),"No OOB route may fall back to the native hazard checkpoint.");
+        Require(PatchProcessor.GetOriginalInstructions(plugin.GetMethod("ActivatePrefix",all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).Name=="BeginRoomEntry"),"Entry not armed at actual activation.");
+        Require(PatchProcessor.GetOriginalInstructions(plugin.GetMethod("TickPostfix",all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).Name=="RememberRoomEntry"),"Entry not captured on completed native ticks.");
+        Require(companion.GetManifestResourceNames().Length>0,"Creator artwork remains embedded.");
+        Assembly gameCode=Assembly.LoadFrom(game+@"\hollow_knight_Data\Managed\Assembly-CSharp.dll");
+        Type health=gameCode.GetType("HealthManager",true);
+        Type attacks=host.GetType("MarioHollow.MarioAttacks",true);
+        Type followup=companion.GetType("HollowMario.DiveSlideFollowup",true);
+        MethodInfo damageMethod=health.GetMethod("TakeDamage",all);
+        // The native TakeDamage body cannot be JIT-prepared under desktop CLR:
+        // Unity's ECall table exists only in the game. Validate its exact input
+        // IL here; executable scopes/transpiler behavior run in DiveSlideChecks.
+        var finalDamage=(System.Collections.Generic.IEnumerable<CodeInstruction>)followup.GetMethod("FinalDamage",all).Invoke(null,
+            new object[]{PatchProcessor.GetOriginalInstructions(damageMethod),damageMethod});
+        var finalCalls=finalDamage.Where(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==followup&&((MethodInfo)i.operand).Name=="Quarter").ToArray();
+        Require(finalCalls.Length==1&&((MethodInfo)finalCalls[0].operand).GetGenericArguments()[0]==damageMethod.GetParameters()[0].ParameterType,"Actual native final HP subtraction/payload mismatch.");
+        Type payload=damageMethod.GetParameters()[0].ParameterType;
+        Require(payload.GetField("Source",all)!=null&&payload.GetField("AttackType",all)!=null&&health.GetField("hp",all)!=null,"Native payload/health fields missing.");
+        Require(attacks.GetMethod("Strike",all).GetParameters()[3].ParameterType.GetField("Id",all)!=null,"Native move-row identity missing.");
+        Type quick=companion.GetType("HollowMario.QuickSlash",true);
+        Type movement=companion.GetType("HollowMario.NativeMovementGates",true);
+        Type native=host.GetType("MarioHollow.Native",true);
+        var post=PatchProcessor.GetOriginalInstructions(plugin.GetMethod("StrikePostfix",all));
+        int healthCheck=post.FindIndex(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).Name=="EnemyLostHealth");
+        int confirmation=post.FindIndex(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==quick&&((MethodInfo)i.operand).Name=="Confirmed");
+        Require(healthCheck>=0&&confirmation>healthCheck,"Quick Slash must follow the existing accepted enemy HP-loss gate.");
+        var skip=post.Skip(healthCheck+1).First(i=>i.opcode==OpCodes.Brfalse||i.opcode==OpCodes.Brfalse_S);
+        Require(post.FindIndex(i=>i.labels.Contains((Label)skip.operand))>confirmation,"Rejected hits must branch past Quick Slash confirmation.");
+        Require(attacks.GetField("lastAction",all)!=null,"Native fresh-attack boundary missing.");
+        object attackInstance=FormatterServices.GetUninitializedObject(attacks);
+        controller.GetField("Attacks",all).SetValue(first,attackInstance);
+        attacks.GetField("lastAction",all).SetValue(attackInstance,0x00800380u);
+        plugin.GetField("marioAttacksField",all).SetValue(null,controller.GetField("Attacks",all));
+        var recent=(System.Collections.Generic.Dictionary<int,float>)plugin.GetField("lastLanding",all).GetValue(null);
+        recent[123]=17f;
+        Type metal=companion.GetType("HollowMario.MetalCap",true);
+        metal.GetField("lastLavaContact",all).SetValue(null,123.5f);
+        var charged=(System.Collections.Generic.HashSet<object>)metal.GetField("charged",all).GetValue(null);charged.Add(new object());
+        metal.GetField("haveAttack",all).SetValue(null,true);
+        plugin.GetMethod("QuickSlashNeutral",all).Invoke(null,new object[]{first});
+        Require((uint)attacks.GetField("lastAction",all).GetValue(attackInstance)==uint.MaxValue
+            &&(uint)plugin.GetField("swingAction",all).GetValue(null)==uint.MaxValue
+            &&(uint)plugin.GetField("lastSwingAction",all).GetValue(null)==uint.MaxValue,"Fresh same-frame punch must start a new base/shared attack episode.");
+        Require(recent[123]==17f&&charged.Count==0&&!(bool)metal.GetField("haveAttack",all).GetValue(null)
+            &&(float)metal.GetField("lastLavaContact",all).GetValue(null)==123.5f,"New attack boundary must preserve enemy contact cooldown and Metal hazard grace while allowing normal per-attack fuel payment.");
+        var initializer=PatchProcessor.GetOriginalInstructions(movement.GetMethod("ChooseAction",all));
+        Require(initializer.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==quick&&((MethodInfo)i.operand).Name=="RemapAction")
+            &&initializer.Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==quick&&((MethodInfo)i.operand).Name=="ActionInitialized"),"Quick Slash must share the existing one action initializer.");
+        foreach(string method in new[]{"OnSceneLoaded","DeactivatePrefix","OnDestroy","ReturnToRoomEntry"})
+            Require(PatchProcessor.GetOriginalInstructions(plugin.GetMethod(method,all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==quick),"Quick Slash teardown missing at "+method);
+        string nativePath=TestEnvironment.Library;
+        IntPtr module=LoadLibrary(nativePath);Require(module!=IntPtr.Zero,"Installed native library did not load for metadata-only hook check.");
+        Type symbols=companion.GetType("HollowMario.NativeSymbols",true);
+        var addresses=(System.Collections.Generic.Dictionary<string,IntPtr>)symbols.GetMethod("Functions",all).Invoke(null,new object[]{nativePath,module,new[]{"stop_and_set_height_to_floor","update_mario_geometry_inputs"}});
+        var body=new byte[150];Marshal.Copy(addresses["stop_and_set_height_to_floor"],body,0,body.Length);
+        Require(BitConverter.ToString(body).Contains("F3-0F-10-40-7C")&&BitConverter.ToString(body).Contains("F3-0F-11-40-40"),"Installed native floor-height/position layout changed.");
+        body=new byte[180];Marshal.Copy(addresses["update_mario_geometry_inputs"],body,0,body.Length);
+        Require(BitConverter.ToString(body).Contains("48-8D-50-70"),"Installed native floor-pointer layout changed.");
+        IntPtr sample=Marshal.AllocHGlobal(512),sampleObject=Marshal.AllocHGlobal(1024);
+        try
+        {
+            Marshal.Copy(new byte[512],0,sample,512);Marshal.Copy(new byte[1024],0,sampleObject,1024);
+            Marshal.WriteIntPtr(sample,0xA8,sampleObject);
+            Marshal.Copy(new[]{12f,80f,34f},0,IntPtr.Add(sample,0x3C),3);
+            Marshal.Copy(new[]{5f,7f,9f,16f},0,IntPtr.Add(sample,0x48),4);
+            Marshal.Copy(new[]{25f},0,IntPtr.Add(sample,0x7C),1);
+            ((StopAtFloor)Marshal.GetDelegateForFunctionPointer(addresses["stop_and_set_height_to_floor"],typeof(StopAtFloor)))(sample);
+            var position=new float[3];var motion=new float[4];var graphic=new float[3];
+            Marshal.Copy(IntPtr.Add(sample,0x3C),position,0,3);Marshal.Copy(IntPtr.Add(sample,0x48),motion,0,4);Marshal.Copy(IntPtr.Add(sampleObject,0x38),graphic,0,3);
+            Require(position.SequenceEqual(new[]{12f,25f,34f})&&graphic.SequenceEqual(position)&&motion.All(v=>v==0f),"Actual native stop/floor helper did not synchronize ground position, motion and gfx.");
+        }
+        finally{Marshal.FreeHGlobal(sampleObject);Marshal.FreeHGlobal(sample);}
+        movement.GetMethod("Configure",all).Invoke(null,new object[]{native});quick.GetMethod("Configure",all).Invoke(null,new object[]{native,logger});
+        try
+        {
+            movement.GetMethod("Install",all).Invoke(null,new object[]{nativePath,module});
+            quick.GetMethod("Install",all).Invoke(null,new object[]{nativePath,module});
+            Require((bool)quick.GetProperty("Armed",all).GetValue(null,null),"Actual punch/moving-punch/kick/animation native hooks did not arm.");
+        }
+        finally{quick.GetMethod("Dispose",all).Invoke(null,null);movement.GetMethod("Dispose",all).Invoke(null,null);}
+        Console.WriteLine("PASS installed native floor layout and actual stop/floor/gfx helper on owned memory; Quick Slash detours, HP-loss route, shared initializer and cleanup. No native Mario action or gameplay executed.");
+        Type weakFlash=companion.GetType("HollowMario.WeakSlideFlash",true);
+        weakFlash.GetMethod("Configure",all).Invoke(null,new object[]{health,logger});
+        Require(weakFlash.GetField("flash",all).GetValue(null)!=null&&weakFlash.GetField("initialize",all).GetValue(null)!=null,"Installed native custom-color flash API did not resolve.");
+        Require(PatchProcessor.GetOriginalInstructions(followup.GetMethod("FinishStrike",all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==weakFlash&&((MethodInfo)i.operand).Name=="Apply"),"Accepted weak-hit finalizer does not route to native feedback.");
+        foreach(string method in new[]{"OnSceneLoaded","DeactivatePrefix","OnDestroy","ReturnToRoomEntry"})
+            Require(PatchProcessor.GetOriginalInstructions(plugin.GetMethod(method,all)).Any(i=>i.operand is MethodInfo&&((MethodInfo)i.operand).DeclaringType==followup),"Dive/slide chain teardown missing at "+method);
+        Console.WriteLine("PASS actual installed HealthManager final-damage IL/payload and Mario Strike row metadata; scene/handover/reset/disposal teardown. Native Unity ECall body was inspected, not JIT-run; executable scope behavior is checked in the CPU fixture.");
+        Console.WriteLine("PASS actual installed default-selection Awake hook, existing/future managed controllers, persistent Knight choice across room changes, unpatched M toggle, compiled first-landing/F5 routes and no mutable checkpoint fallback. No native game loop or game was started.");
+    }
+}

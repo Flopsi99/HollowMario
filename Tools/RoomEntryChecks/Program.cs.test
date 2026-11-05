@@ -1,0 +1,134 @@
+using System;
+using HollowMario;
+using MarioHollow;
+using UnityEngine;
+class Program
+{
+    static void Check(bool x,string message){if(!x)throw new Exception(message);}
+    static void Near(float a,float b,string message){Check(Math.Abs(a-b)<.001f,message);}
+    static KnightResetFollow Setup(out Controller c)
+    {
+        c=new Controller();Controller.Instance=c;MarioMath.Origin=new Vector2();Time.unscaledTime=0;
+        Native.Reset();Plugin.Clears=0;var follow=new KnightResetFollow(new BepInEx.Logging.ManualLogSource(),typeof(Controller),2000);
+        Check(follow.Armed,follow.Problem);return follow;
+    }
+    static void Hurt(Controller c)
+    {
+        c.State=new MarioState{action=0x010208B0,forwardVelocity=-25,vx=-25,vy=-10,vz=5,faceAngle=1.57f,health=2176};
+        c.PrevState=c.State;Native.Forward=-25;c.hero.transform.body.velocity=new Vector2(-8,-4);
+    }
+    static void Still(Controller c)
+    {
+        Check(c.State.action==0x0C400201&&Native.Action==0x0C400201,"must return to standing idle, not knockback/spawn");
+        Near(c.State.forwardVelocity,0,"managed forward speed");Near(Native.Forward,0,"native forward speed");
+        Near(c.State.vx,0,"managed x speed");Near(c.State.vy,0,"managed y speed");Near(c.State.vz,0,"managed z speed");
+        Near(Native.XVelocity,0,"native x speed");Near(Native.YVelocity,0,"native y speed");
+        Check(c.PrevState.action==c.State.action&&c.PrevState.forwardVelocity==0&&c.PrevState.vx==0,"previous/interpolated state synchronized");
+        Near(c.hero.transform.body.velocity.magnitude,0,"hidden Knight momentum cleared");
+        Check(c.State.health==2176&&Math.Abs(c.State.faceAngle-1.57f)<.001f,"health/facing preserved");
+    }
+    static void Main()
+    {
+        var follow=Setup(out var c);follow.BeforeTick(c);Time.unscaledTime=2;
+        Hurt(c);c.hero.transform.position=new Vector3(10,4.4f,0);
+        Check(follow.BeforeTick(c),"ordinary safe-position teleport must be followed");Still(c);
+        Near(MarioMath.Origin.x,10,"safe x");Near(MarioMath.Origin.y,3,"safe feet height");
+        Check(!follow.BeforeTick(c),"teleport reset must not repeat at a matching position");
+        Console.WriteLine("PASS existing reset path now clears native action/forward/XYZ, managed previous/current state and body speed; facing/health preserved");
+        follow=Setup(out c);Hurt(c);follow.BeforeTick(c);Time.unscaledTime=2;
+        Check(!follow.BeforeTick(c)&&c.State.action==0x010208B0,"ordinary hit without relocation must retain recoil");
+        Check(!follow.BeforeTick(c),"normal motion must not trigger a repeated reset");
+        Console.WriteLine("PASS ordinary recoil and existing reset timing/detection unchanged");
+        InvulnerabilityChecks.Run();
+        RoomEntryChecks.Run();
+        VoidGuardChecks.Run();
+    }
+}
+public class Hero
+{
+    public Transform transform{get;}=new Transform{position=new Vector3(0,1.4f,0)};
+    public HeroState cState=new HeroState();public int transitionState,hero_state;
+    public bool acceptingInput=true,controlReqlinquished;public float DAMAGE_FREEZE_DOWN;public Pulse invPulse;
+    public bool CanTalk()=>false;public bool CanInteract()=>false;
+}
+public class HeroState{public bool transitioning,dead,invulnerable,facingRight,recoiling,onGround,swimming,hazardDeath,hazardRespawning,attacking,dashing,backDashing;}
+public class Pulse{public void startInvulnerablePulse(){}public void stopInvulnerablePulse(){}}
+public struct MarioState{public float px,py,pz,vx,vy,vz,forwardVelocity,faceAngle;public uint action;public short animID,animFrame,health;}
+public class Controller
+{
+    public static Controller Instance;public bool Wanted=true;public int MarioId=0;public Hero hero=new Hero();
+    public MarioState State,PrevState;public Vector3 MarkPosition;public float feetOffset=1.4f;
+    private Collision collision=new Collision();
+    public void Recenter(){MarioMath.Origin=new Vector2(MarioMath.Origin.x+State.px*.0105f,MarioMath.Origin.y+State.py*.0105f);}
+}
+namespace MarioHollow
+{
+    public static class MarioMath{public static Vector2 Origin;}
+    public static class Native
+    {
+        public static readonly object Sync=new object();public static uint Action;public static float Forward,XVelocity,YVelocity;public static int Water,Resets;
+        public static void Reset(){Action=0;Forward=XVelocity=YVelocity=0;Water=Resets=0;}
+        public static void sm64_set_mario_position(int id,float x,float y,float z){}
+        public static void sm64_set_mario_velocity(int id,float x,float y,float z){XVelocity=x;YVelocity=y;}
+        public static void sm64_set_mario_action(int id,uint action){Action=action;Resets++;}
+        public static void sm64_set_mario_forward_velocity(int id,float speed){Forward=speed;}
+        public static void sm64_set_mario_water_level(int id,int water){Water=water;}
+    }
+}
+public class Collision{public static int Objects;}
+namespace HollowMario
+{
+    internal sealed class Plugin
+    {
+        internal static bool HasHitProtection(object hero)=>false;
+        public static int Clears;internal static void ClearResetMotion(object controller){Clears++;}
+        internal static Plugin Instance;internal KnightResetFollow knightFollow;
+        internal BepInEx.Logging.ManualLogSource Log=new BepInEx.Logging.ManualLogSource();
+        internal int Scene,Returns;
+        internal bool ReturnToRoomEntry(object controller)
+        {
+            if(!knightFollow.ReturnToRoomEntry(controller,Scene))return false;
+            Returns++;CapSystem.Metallic=false;return true;
+        }
+    }
+    internal static class CapSystem{internal static bool Metallic;}
+    internal static class TerrainConversion{internal static float LowestY=-30f;}
+    internal static class Swimming{internal static bool UsesSwimControls(uint action)=>(action&0x2000u)!=0;}
+    // Substitute only the Unity scene query; exercise the production recovery paths.
+    internal static class FallDestination
+    {
+        internal static bool NativeEndpoint;
+        internal static bool NativeOwns(object hero)
+        {
+            var state=(hero as Hero)?.cState;
+            return state!=null&&(state.dead||state.transitioning||state.hazardDeath||state.hazardRespawning);
+        }
+        internal static bool HasBelow(Vector3 feet,object hero)
+        {Physics2D.Queries++;return NativeEndpoint||Physics2D.GroundCount>0;}
+        internal static void Forget(){}
+    }
+}
+namespace HollowMario{internal static class MapFallFlourish{internal static void Forget(){}}}
+namespace BepInEx.Logging{public class ManualLogSource{public void LogInfo(string text){}public void LogWarning(string text){}}}
+namespace UnityEngine
+{
+    public static class Time{public static float unscaledTime,time,deltaTime;}
+    public class WaitForSeconds{public WaitForSeconds(float seconds){}}
+    public struct Vector2{public float x,y;public Vector2(float a,float b){x=a;y=b;}public static Vector2 zero=>new Vector2();public float magnitude=>(float)Math.Sqrt(x*x+y*y);public static Vector2 operator/(Vector2 a,float x)=>new Vector2(a.x/x,a.y/x);}
+    public struct Vector3{public float x,y,z;public Vector3(float a,float b,float c){x=a;y=b;z=c;}public static Vector3 operator-(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);}
+    public class Rigidbody2D{public Vector2 position,velocity;}
+    public class Transform{public Vector3 position;public Transform parent;public Rigidbody2D body=new Rigidbody2D();public BoxCollider2D box;public T GetComponent<T>()where T:class=>(body as T)??(box as T);public void SetParent(Transform target,bool keepWorld){parent=target;}}
+    public struct Bounds{public Vector3 min;}
+    public class BoxCollider2D{public bool enabled=true,isTrigger;public Bounds bounds;}
+    public struct ContactFilter2D{public bool useTriggers;public void SetLayerMask(int mask){}}
+    public struct RaycastHit2D{}
+    public static class LayerMask{public static int GetMask(params string[] layers)=>1;}
+    public static class Physics2D
+    {
+        public static int GroundCount,Queries;
+        public static void SyncTransforms(){}
+        public static int Raycast(Vector2 origin,Vector2 direction,ContactFilter2D filter,RaycastHit2D[] hits,float distance)
+        {Queries++;return GroundCount;}
+    }
+    public static class Mathf{public static float Abs(float x)=>Math.Abs(x);}
+}

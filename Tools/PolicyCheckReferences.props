@@ -1,0 +1,15 @@
+<Project>
+  <!-- Source-linked policy fixtures. Deliberately no game or host assembly:
+       their fake controller/Unity endpoints isolate policy, not integration. -->
+  <PropertyGroup>
+    <ApiPackageDir Condition="'$(ApiPackageDir)' == ''">$(MSBuildThisFileDirectory)../.artifacts/independent-host/services</ApiPackageDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">E:/SteamLibrary/steamapps/common/Hollow Knight/hollow_knight_Data/Managed</ManagedDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="HollowMario.ApiRuntime"><HintPath>$(ApiPackageDir)/HollowMario.ApiRuntime.dll</HintPath></Reference>
+    <Reference Include="0Harmony"><HintPath>$(ApiPackageDir)/0Harmony.dll</HintPath></Reference>
+    <Reference Include="MonoMod.RuntimeDetour"><HintPath>$(ManagedDir)/MonoMod.RuntimeDetour.dll</HintPath></Reference>
+    <Reference Include="MonoMod.Utils"><HintPath>$(ManagedDir)/MonoMod.Utils.dll</HintPath></Reference>
+    <Reference Include="Mono.Cecil"><HintPath>$(ManagedDir)/Mono.Cecil.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,379 @@
+# EDITING COPY — these texts are not installed in the game yet.
+# Edit new_description only. Everything else is a reference/reminder.
+# Keep the indentation beneath |-. Blank lines separate paragraphs.
+# You can write ordinary text: no quotes, <br> tags or programming needed.
+# Leave new_description empty (new_description: "") to keep the original.
+# The supplied new_description texts are optional Mario-aware starting drafts.
+# Later, ask me to implement your edited descriptions from this file.
+
+format_version: 1
+language: English
+reference_build: "0.9.172"
+state: editing_draft_not_in_game
+intended_scope: Mario-selected charm inventory descriptions
+# Names, equipment, costs and gameplay are outside this text-editing draft.
+
+# Sixteen charm slots: all eleven explicit Mario adaptations, the four
+# creator-confirmed native effects, and source-verified Soul Eater.
+# Strength's normal, upgraded and broken descriptions are separate variants.
+# Order: movement -> reach -> damage -> reactive effects -> SOUL/caps -> utility.
+
+movement:
+  sprintmaster:
+    name: Sprintmaster
+    slot: 37
+    description_key: CHARM_DESC_37
+    mario_behavior: |-
+      Applies the Knight's normal Sprintmaster running-speed ratio to Mario's
+      ground movement. Uses the game's stronger combined ratio with Dashmaster.
+      Walk zones and the native wet movement restriction do not receive this boost.
+    verification: |-
+      Implemented; live slopes, takeoff momentum, charm changes, water and
+      conveyor combinations remain on the gameplay checklist.
+    new_description: |-
+      Bears the likeness of a strange bug known only as 'The Sprintmaster'.
+
+      Increases the running speed of Mario, allowing him to avoid danger or overtake rivals.
+
+  dashmaster:
+    name: Dashmaster
+    slot: 31
+    description_key: CHARM_DESC_31
+    mario_behavior: |-
+      Adds 20% horizontal speed once when a ground or aerial long jump launches.
+      Extends ground-pound-to-long-jump cancellation into the descending phase;
+      without this charm, cancellation is limited to ground-pound startup.
+      An aerial cancel still needs the shared air dash and normal dash cooldown.
+      Does not add an extra dash, downward dash or vertical launch boost.
+      Also enables Sprintmaster's stronger running-speed combination.
+    verification: |-
+      Implemented; both launch routes, reversal, late cancellation, shared dash
+      resets and the Sprintmaster combination still need gameplay confirmation.
+    new_description: |-
+      Bears the likeness of an eccentric bug known only as 'The Dashmaster'.
+
+      Mario will long jumps faster and he can do it even later during a Ground Pound. Perfect for those who want to move around as quickly as possible.
+
+  no_bonk_badge:
+    name: No Bonk Badge
+    slot: 14
+    description_key: CHARM_DESC_14
+    mario_behavior: |-
+      With Wall Jump unlocked, Jump can cancel a recent wall bonk into a wall jump,
+      including a dive into a wall. Does not cancel enemy or hazard knockback.
+    verification: |-
+      Implemented; live wall and dive recovery still need gameplay review.
+    new_description: |-
+      Turns a collision into a second chance.
+
+      Allows Mario to kick away from walls even after a clumsy collision.
+
+attack_reach:
+  longnail:
+    name: Longnail
+    slot: 18
+    description_key: CHARM_DESC_18
+    mario_behavior: |-
+      Increases the shared offensive reach of Mario's physical attacks by 15%,
+      including scenery contacts and stomp, ground-pound and hazard-pogo checks.
+      With Mark of Pride, the total increase is 40%, added rather than multiplied.
+      Mario's body, incoming hurtbox, damage and bounce physics stay the same.
+    verification: |-
+      Implemented; individual moves, equipment/save changes and combinations
+      still need gameplay confirmation.
+    new_description: |-
+      Increases the range of Mario's physical attacks, allowing him strike to foes from further away.
+
+  mark_of_pride:
+    name: Mark of Pride
+    slot: 13
+    description_key: CHARM_DESC_13
+    mario_behavior: |-
+      Increases the same physical attack/contact reach as Longnail by 25%.
+      Wearing both gives a total 40% reach increase. Does not enlarge Mario's
+      incoming hurtbox or change physical movement, damage or bounce strength.
+    verification: |-
+      Implemented; individual moves, combined reach and equipment/save changes
+      still need gameplay confirmation.
+    new_description: |-
+      Freely given by the Mantis Tribe to those they respect.
+
+      Greatly increases the range of Mario's physical attacks, allowing him to strike foes from further away.
+
+physical_damage:
+  strength:
+    name: Fragile / Unbreakable Strength
+    slot: 25
+    mario_behavior: |-
+      Mario's physical attacks use the Knight's live Strength-adjusted nail
+      damage before each move's own damage calculation. This retains the native
+      50% bonus, rounding, broken-charm checks and boss binding rules.
+      Covers punches, kicks, dives/slides, stomps, ground-pound startup/descent,
+      landing shockwaves and scenery strikes. Combines with Fury and Metal once.
+      Does not add a new fragile-charm breaking/death rule.
+    verification: |-
+      Implemented in .166; isolated damage/stacking checks passed. Actual damage
+      at each nail tier, breaking, upgrades, health/save changes and bindings
+      still need gameplay confirmation.
+    variants:
+      fragile:
+        name: Fragile Strength
+        description_key: CHARM_DESC_25
+        new_description: |-
+          Strengthens Mario, increasing the damage he deals to enemies with his physical attacks.
+
+          This charm is fragile, and will break if Mario is killed.
+      unbreakable:
+        name: Unbreakable Strength
+        description_key: CHARM_DESC_25_G
+        new_description: |-
+          Strengthens Mario, increasing the damage he deals to enemies with his physical attacks.
+
+          This charm is unbreakable.
+      broken:
+        name: Fragile Strength (broken)
+        description_key: CHARM_DESC_25_BROKEN
+        new_description: |-
+          Strengthens Mario, increasing the damage he deals to enemies with his physical attacks.
+
+          This charm has broken, and the power inside has been silenced. It can not be equipped.
+
+  fury_of_the_fallen:
+    name: Fury of the Fallen
+    slot: 6
+    description_key: CHARM_DESC_6
+    mario_behavior: |-
+      Applies the native Fury damage multiplier to Mario's physical attacks
+      after the move's own damage calculation. Normally 1.75 while Fury is active.
+      The original game decides activation at one mask, blue-health/Joni
+      exceptions and cancellation. Same physical move coverage as Strength.
+      Scenery damage is rounded once; Fury is not applied a second time.
+    verification: |-
+      Implemented in .166; isolated live-value/stacking checks passed. Actual
+      health transitions, blue-health combinations and visual feedback remain
+      unconfirmed in Mario gameplay.
+    new_description: |-
+      Embodies the fury and heroism that comes upon those who are about to die.
+
+      When close to death, Mario's strength will increase.
+
+  heavy_blow:
+    name: Heavy Blow
+    slot: 15
+    description_key: CHARM_DESC_15
+    mario_behavior: |-
+      Passes the normal nail's live knockback multiplier into Mario's physical
+      hits and scenery hit metadata; normally 1.75 while equipped.
+      The enemy's native recoil/stagger handling decides its actual response.
+      Does not strengthen Mario's own stomp, pogo or mushroom bounce, change
+      hitboxes, or add a custom stagger counter.
+    verification: |-
+      Implemented in .166; isolated modifier checks passed. Movable/immune
+      enemies, native stagger behavior and actual feedback still need playtesting.
+    new_description: |-
+      Formed from the nails of fallen warriors.
+
+      Increases the force of Mario's physical attacks, causing enemies to recoil further when hit.
+
+reactive_and_shadow_effects:
+  sharp_shadow:
+    name: Sharp Shadow
+    slot: 16
+    description_key: CHARM_DESC_16
+    mario_behavior: |-
+      Only during the active shadow phase of a shaded long jump, Mario uses
+      the existing dive contact/damage path: its reach, swept contacts and 2x
+      nail-based damage, with the shared Strength/Fury/Heavy Blow/Metal modifiers.
+      Ordinary long jumps and the part after the shadow expires remain harmless.
+      Adds no movement speed, shadow duration, recharge or extra hit protection.
+      Eligible projectile/scenery contacts follow the shared attack rules;
+      this does not make every projectile or hazard breakable.
+    verification: |-
+      Implemented in .167; phase/equipment gates and shared routes checked in
+      isolation. Actual enemy/projectile contacts, fast crossings, multiple
+      targets and phase expiry still need gameplay confirmation.
+    new_description: |-
+      Contains a forbidden spell that transforms shadows into deadly weapons.
+
+      When using Shadow Dash, Mario's body will sharpen and damage enemies.
+
+  thorns_of_agony:
+    name: Thorns of Agony
+    slot: 12
+    description_key: CHARM_DESC_12
+    mario_behavior: |-
+      An accepted Mario damage reaction queues the game's original four thorn
+      hitboxes after its native recoil/windup, for the native burst duration.
+      Mario keeps control rather than being switched into a Knight animation.
+      Retains the thorns' own raw nail damage, directions, repeat hits and armour
+      rules; does not borrow Mario dive/shockwave or Strength/Fury multipliers.
+      Uses Stalwart Shell's recoil timing when equipped. Blocked hits do not
+      trigger it; accepted Metal damage reactions can. Handover/reset cancels it.
+    verification: |-
+      Implemented in .167; isolated reaction/timing/cleanup checks passed.
+      Native hitbox contacts, visible feedback, repeat-hit count and Metal
+      recoil interaction still need gameplay confirmation.
+    new_description: |-
+      Senses the pain of its bearer and lashes out at the world around them.
+
+      When taking damage, sprout thorny vines that damage nearby foes.
+
+  defenders_crest:
+    name: Defender's Crest
+    slot: 10
+    description_key: CHARM_DESC_10
+    mario_behavior: |-
+      The original damage-cloud spawning remains in use. The .167 adaptation
+      stops the base Mario mod from hiding the crest's continuous particle
+      renderer. Cloud damage, frequency and equipment/binding checks are native.
+      We changed visibility, not the cloud spawn rate or damage balance.
+    verification: |-
+      Creator confirmed partial behavior before .167 but emissions looked slow.
+      The renderer fix passed isolated checks; its live appearance and actual
+      damage cadence still need confirmation.
+    new_description: |-
+      Unique charm bestowed by the King of Hallownest to his most loyal knight. Scratched and dirty, but still cared for.
+
+      Surrounds Mario with a heroic odour.
+
+soul_and_caps:
+  nailmasters_glory:
+    name: Nailmaster's Glory
+    slot: 26
+    description_key: CHARM_DESC_26
+    mario_behavior: |-
+      Reduces passive SOUL upkeep of every cap by 25%. At the default settings,
+      Vanish and Metal drop from 8 to 6 SOUL/second; Wing from 6 to 4.5.
+      This is an upkeep reduction, not a reduction in Metal's individual
+      successful-hit or incoming-impact costs. Fractional upkeep debt is retained.
+    verification: |-
+      Implemented; Vanish gameplay was accepted. Metal and the deliberately
+      limited Wing testing, reserve fuel and switching combinations remain
+      on the checklist. Numeric rates assume the default upkeep setting.
+    new_description: |-
+      Contains the passion, skill and regrets of a Nailmaster.
+
+      Increases Mario's mastery of caps, allowing him to use them for longer.
+      
+  soul_catcher:
+    name: Soul Catcher
+    slot: 20
+    description_key: CHARM_DESC_20
+    mario_behavior: |-
+      The native successful-hit SOUL routine gives its normal extra SOUL:
+      +3 to main-bar gain or +2 to reserve gain, according to the native route.
+      With Metal active, successful attack fuel cost drops from 5 to 3 SOUL.
+      Soul Eater reduces that cost to 1 with or without Soul Catcher.
+      While any cap is active, SOUL generation cannot refill its fuel budget.
+      These discounts do not reduce passive upkeep or the 10-SOUL incoming-hit cost.
+    verification: |-
+      Creator confirmed ordinary SOUL gain in gameplay. Metal cost, reserve
+      and combination scenarios passed isolated checks but remain unconfirmed
+      in actual gameplay.
+    new_description: |-
+      Used by shamans to draw more SOUL from the world around them.
+
+      Increases the amount of SOUL gained from Mario's successful attacks. 
+      While wearing the Metal Cap, attacks consume a bit less SOUL.
+
+  soul_eater:
+    name: Soul Eater
+    slot: 21
+    description_key: CHARM_DESC_21
+    mario_behavior: |-
+      Uses the same native SOUL routine as Soul Catcher, with its own equipped
+      flag: +8 main gain or +6 reserve gain, additive with Soul Catcher.
+      With Metal active, successful attack fuel cost drops from 5 to 1 SOUL;
+      wearing Soul Catcher as well does not reduce it below 1.
+      While any cap is active, SOUL generation cannot refill its fuel budget.
+      Does not reduce passive upkeep or the 10-SOUL incoming-hit cost.
+    verification: |-
+      Native gain path source-verified, not personally confirmed by the creator.
+      Metal costs and combinations passed isolated checks; live gain, reserve
+      behavior and combined equipment remain unconfirmed.
+    new_description: |-
+      Forgotten shaman artifact, used to draw SOUL from still-living creatures.
+
+      Increases the amount of SOUL gained from Mario's successful attacks. 
+      While wearing the Metal Cap, attacks consume a lot less SOUL.
+
+  grubsong:
+    name: Grubsong
+    slot: 3
+    description_key: CHARM_DESC_3
+    mario_behavior: |-
+      The native damage reward already carries over; no new Mario-specific
+      Grubsong mechanic was added. Active caps still prevent SOUL generation
+      from increasing their remaining fuel budget.
+    verification: |-
+      Creator confirmed the core effect in gameplay. Grubberfly's Elegy,
+      blocked hits, blue health and all Metal cases were not individually verified.
+    new_description: |-
+      Contains the gratitude of freed grubs.
+
+      Mario gains SOUL when taking damage.
+
+exploration_and_collection:
+  gathering_swarm:
+    name: Gathering Swarm
+    slot: 1
+    description_key: CHARM_DESC_1
+    mario_behavior: |-
+      Native Geo collection already works while playing as Mario.
+      No custom collection mechanic was needed or added.
+    verification: |-
+      Creator-confirmed core gameplay. Unusual handover/scene cases were not
+      individually documented.
+    new_description: |-
+      A swarm will follow Mario and gather up any loose Geo.
+
+      Useful for those who can't bear to leave anything behind, no matter how insignificant.
+
+  wayward_compass:
+    name: Wayward Compass
+    slot: 2
+    description_key: CHARM_DESC_2
+    mario_behavior: |-
+      The native map marker already works. Mario uses the project's existing
+      native map handover; no custom Compass mechanic was needed or added.
+    verification: |-
+      Creator-confirmed core gameplay. Unusual map handovers were not
+      individually documented.
+    new_description: |-
+      Whispers its location to Mario whenever a map is open, allowing him to pinpoint his current location.
+
+# These are reminders, not editable description entries or completed effects.
+# The full reference is ../../Notes/CHARM-COMPATIBILITY.md.
+# A native path being retained is not proof that it has passed a Mario playtest.
+remaining_checklist:
+  native_paths_still_awaiting_gameplay:
+    - "Stalwart Shell: native longer damage invulnerability is bridged; timing/expiry pending."
+    - "Baldur Shell: native focus protection during Knight handover; blocking/depletion pending."
+    - "Quick Focus: native focus timing during Knight handover; combinations pending."
+    - "Lifeblood Heart: shared native blue health; equip/damage/reset pending."
+    - "Lifeblood Core: shared native blue health; equip/damage/reset pending."
+    - "Flukenest: native spell/projectiles retained; casts and Shaman combination pending."
+    - "Shaman Stone: native spells retained; actual damage/size pending."
+    - "Fragile / Unbreakable Heart: shared native maximum health; health/death/variant rules pending."
+    - "Fragile / Unbreakable Greed: native enemy death Geo rules; Mario kills/death pending."
+    - "Joni's Blessing: shared native converted blue health; restrictions/combinations pending."
+    - "Shape of Unn: native moving focus during Knight control; visuals/return/combinations pending."
+    - "Dream Wielder: actual Knight Dream Nail; timing/gain/handover pending."
+    - "Spell Twister: native spell costs; actual casts pending."
+    - "Deep Focus: native focus routine; amount/time/cancellation/combinations pending."
+    - "Kingsoul / Void Heart: native passive SOUL and world effects; direct checks pending."
+  needs_focused_audit:
+    - "Spore Shroom: focus cloud spawn/damage/visibility after Mario resumes."
+    - "Glowing Womb: companion spawning, SOUL cost, following, damage and visibility."
+    - "Hiveblood: native regeneration timer and health restoration, including Joni."
+    - "Dreamshield: native SLASH reaction now follows Mario damaging moves once per attack; orbit/block and gameplay verification pending."
+    - "Weaversong: creator confirms followers work; individual charm combinations not exhaustively verified."
+    - "Grimmchild: creator confirms intended behavior; individual levels not exhaustively verified."
+    - "Carefree Melody: native protection path exists; actual block chance/counter/feedback pending."
+
+
+
+# 0.10.58: Elegy uses native beams on punches and kick strikes only, never
+# slides/dives/pounds. Native full-health/Joni/Fury rules remain in force.
+# Quick Slash already supports hit-confirmed punch/short-hop recovery and
+# adjustable aerial kick recovery (0.2 seconds by default).
