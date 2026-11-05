@@ -40,7 +40,7 @@ namespace MarioHollow
         private void Awake()
         {
             HostTrace.Sink=message=>Logger.LogInfo(message);
-            HostTrace.Enabled=Config.Bind("Diagnostics","DetailedTrace",true,"Detailed independent-host playtest logging: ownership, actions, damage, renderer and periodic audio counters.").Value;
+            HostTrace.Enabled=HostTrace.Available&&Config.Bind("Diagnostics","DetailedTrace",false,"Detailed independent-host playtest logging; requires a developer diagnostics build.").Value;
             if(!Sm64.Ready)
             {
                 string library=Path.Combine(Path.GetDirectoryName(GetType().Assembly.Location),"sm64.dll");
@@ -75,7 +75,7 @@ namespace MarioHollow
         private void Update()
         {
             if(audio!=null)audio.Volume=MarioAudio.Volume;
-            if(Time.unscaledTime>=nextDiagnostics){nextDiagnostics=Time.unscaledTime+5f;HostTrace.Write("audio "+AudioDiagnostics+"; player "+(MarioController.Instance?.Diagnostics??"absent"));}
+            if(HostTrace.Enabled&&Time.unscaledTime>=nextDiagnostics){nextDiagnostics=Time.unscaledTime+5f;HostTrace.Write("audio "+AudioDiagnostics+"; player "+(MarioController.Instance?.Diagnostics??"absent"));}
         }
         private void OnGUI(){ } // Retained hook point; no debugging overlay.
         private void OnDestroy(){BridgeContracts.Dispose();HostTrace.Write("shutdown audio "+AudioDiagnostics);audio?.Dispose();audio=null;GetComponent<MarioController>()?.Shutdown();Sm64.Stop();HostTrace.Sink=null;}

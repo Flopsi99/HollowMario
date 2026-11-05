@@ -97,7 +97,16 @@ namespace BepInEx.Logging
         public ManualLogSource(string name) { SourceName = name; }
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Log(LogLevel level, object value)
-        { HollowMario.ApiRuntime.ApiContext.WriteLog?.Invoke((int)level, "[" + SourceName + "] " + value); }
+        {
+#if !HOLLOW_MARIO_DIAGNOSTICS
+            // Retained settings from experimental builds cannot enable gameplay
+            // tracing in a public package. Test acknowledgements stay functional.
+            if((SourceName=="Hollow Mario"||SourceName=="Hollow Mario independent host")
+                &&(level&(LogLevel.Fatal|LogLevel.Error|LogLevel.Warning|LogLevel.Message))==0
+                &&!(value is string text&&text.StartsWith("melty test:",StringComparison.OrdinalIgnoreCase)))return;
+#endif
+            HollowMario.ApiRuntime.ApiContext.WriteLog?.Invoke((int)level, "[" + SourceName + "] " + value);
+        }
         public void LogInfo(object value) => Log(LogLevel.Info, value);
         public void LogDebug(object value) => Log(LogLevel.Debug, value);
         public void LogMessage(object value) => Log(LogLevel.Message, value);

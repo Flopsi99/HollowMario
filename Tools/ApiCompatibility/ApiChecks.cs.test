@@ -114,8 +114,11 @@ internal static class ApiChecks
                 &&!(bool)debug.GetProperty("ShowHitboxes",debugFlags).GetValue(null),"Diagnostic HUDs still start off.");
             freshDebug.Bind("Debug","VerboseLogging",false,"").Value=true;
             debug.GetMethod("Bind",debugFlags).Invoke(null,new object[]{new ConfigFile(Path.Combine(scratch,"fresh-debug.cfg"))});
-            Check((bool)debug.GetProperty("VerboseLogging",debugFlags).GetValue(null)
-                &&(bool)debug.GetProperty("PresentationTiming",debugFlags).GetValue(null),"Existing verbose choice and performance diagnostics survive quiet defaults and reload.");
+            bool diagnosticsAvailable=(bool)debug.GetProperty("DiagnosticsAvailable",debugFlags).GetValue(null);
+            Check(freshDebug.Bind("Debug","VerboseLogging",false,"").Value
+                &&(bool)debug.GetProperty("VerboseLogging",debugFlags).GetValue(null)==diagnosticsAvailable
+                &&(bool)debug.GetProperty("PresentationTiming",debugFlags).GetValue(null)==diagnosticsAvailable,
+                "Existing preferences survive reload, while developer logging requires a diagnostics build.");
             var log = new ManualLogSource("API debug checks");
             var other = new ManualLogSource("Other mod");
             var quiet = new ConfigFile(Path.Combine(scratch, "debug.cfg"));

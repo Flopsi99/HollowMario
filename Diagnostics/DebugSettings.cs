@@ -18,10 +18,21 @@ namespace HollowMario
         internal static bool BenchReturn => Enabled && (benchReturn?.Value ?? true);
         internal static bool ShowBossHp => Enabled && (healthDisplayOverride ?? bossHp?.Value ?? false);
         internal static bool ShowHitboxes => Enabled && (hitboxDisplayOverride ?? hitboxes?.Value ?? false);
-        internal static bool VerboseLogging => Enabled && (verbose?.Value ?? false);
+        internal static bool DiagnosticsAvailable
+        {
+            get
+            {
+#if HOLLOW_MARIO_DIAGNOSTICS
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+        internal static bool VerboseLogging => DiagnosticsAvailable && Enabled && (verbose?.Value ?? false);
         internal static bool ShowEngineOverlay => Enabled && (engineOverlay?.Value ?? false);
         internal static bool PresentationTiming => Enabled && VerboseLogging && (presentationTiming?.Value ?? true);
-        internal static bool CameraTrace => Enabled && (cameraTrace?.Value ?? false);
+        internal static bool CameraTrace => DiagnosticsAvailable && Enabled && (cameraTrace?.Value ?? false);
 
         internal static void Bind(ConfigFile config)
         {
@@ -40,7 +51,7 @@ namespace HollowMario
                 "Draw Mario's collision/hurt boxes, active move reach and stomp path. Default off. F7 toggles for the current session; rebind in the community API mod menu. Requires Enabled. Read-only."+restart);
             verbose = config.Bind("Debug", "VerboseLogging", false,
                 "Enable companion info/debug logs, projectile tracing and terrain/trigger inspection. Default off for new installs; existing choices are preserved. Requires Enabled. Warnings, errors and automated test results remain available." + restart);
-            cameraTrace=config.Bind("Debug","TraceCamera",true,
+            cameraTrace=config.Bind("Debug","TraceCamera",false,
                 "Temporary read-only hidden-room camera diagnostics. Records collider/region contacts and camera motion to two rotating 4 MiB files beside the host. No camera behavior changes; independent of VerboseLogging."+restart);
             presentationTiming=config.Bind("Debug","LogPresentationHitches",true,
                 "Log gameplay frames >=50 ms or scoped work >=12 ms, at most once per five seconds, plus a 30-second performance summary. Includes collision, simulation, combat, rendering, camera/pose costs, per-frame GC and managed allocation when supported. Scope times overlap; unmeasured game/render/other-mod work is not attributed. Requires Enabled and VerboseLogging."+restart);

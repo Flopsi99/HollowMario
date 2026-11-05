@@ -53,6 +53,7 @@ namespace HollowMario
         private static bool armed,wasFocused;
         private static int focusedFrames;
         private static string Context=>BenchMario.Presenting?"bench":OpeningMario.Presenting?"opening":ConversationMario.Context;
+        [System.Diagnostics.Conditional("HOLLOW_MARIO_DIAGNOSTICS")]
         internal static void Arm(Harmony harmony,Type controller)
         {
             mainThread=Thread.CurrentThread.ManagedThreadId;gameType=AccessTools.TypeByName("GameManager");

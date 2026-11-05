@@ -93,6 +93,7 @@ namespace HollowMario
                 prefix:new HarmonyMethod(typeof(ConversationMario),nameof(BeforeNativeClip)));
             ArrivalMario.Arm(harmony,heroType,animatorType);
             UpgradeKnockoutMario.Arm(harmony,heroType,animatorType);
+            MonarchWingsMario.Arm(harmony,heroType);
             WebbedMario.Arm(harmony,heroType);
             DreamArrivalMario.Arm(harmony,heroType,animatorType);
             DreamerSequenceMario.Arm(harmony,heroType,animatorType);
@@ -127,7 +128,7 @@ namespace HollowMario
             ||clip.EndsWith("ToIdle",StringComparison.Ordinal)||clip.EndsWith("To Idle",StringComparison.Ordinal));
         internal static bool PickupClip(string clip)=>clip!=null&&clip.StartsWith("Collect ",StringComparison.Ordinal)&&!ReturnToIdleClip(clip);
         private static bool ScriptedPickup(string clip)
-            =>DeathMario.Active||UpgradeKnockoutMario.Active||DreamerSequenceMario.Active||BirthplaceMario.OwnsSequence
+            =>DeathMario.Active||UpgradeKnockoutMario.Active||MonarchWingsMario.OwnsSequence||DreamerSequenceMario.Active||BirthplaceMario.OwnsSequence
                 ||ShadePoolMario.Active||BeastBenchMario.Active||WebbedMario.OwnsSequence
                 ||(actionGroup=="wake"&&ArrivalMario.Continues(clip));
         internal static bool CoverNativeInteraction(bool hasView,bool isReturning,bool sensitive,bool marioActive,bool controlHeld,bool returningClip,bool playing)
@@ -240,6 +241,7 @@ namespace HollowMario
             animation=clip;actionYaw=yaw;darkPose=dark;heldFrame=hold;actionHeld=holdControl;actionGroup=group;
             if(group!="wake"&&group!="hazard-return")ArrivalMario.Forget();
             if(group!="upgrade")UpgradeKnockoutMario.Forget();
+            if(group!=MonarchWingsMario.Group)MonarchWingsMario.Forget();
             if(group!="dream")DreamNailMario.Forget();
             if(group!="web")WebbedMario.Forget();
             if(group!="dream-arrival")DreamArrivalMario.Forget();
@@ -535,7 +537,7 @@ namespace HollowMario
             object state=CapAccess.Read(current,"cState");
             return current!=null&&(DeathMario.Active||!CapAccess.Flag(state,"dead"))
                 &&(DeathMario.Active||hazardPose||!CapAccess.Flag(state,"hazardDeath"))
-                &&(DeathMario.Active||transition||hazardPose||actionGroup=="wake"||actionGroup=="upgrade"||actionGroup=="web"||actionGroup=="web-fall"||actionGroup=="dream-arrival"||actionGroup==DreamerSequenceMario.Group||actionGroup==BirthplaceMario.Group||!CapAccess.Flag(state,"transitioning"))
+                &&(DeathMario.Active||transition||hazardPose||actionGroup=="wake"||actionGroup=="upgrade"||actionGroup==MonarchWingsMario.Group||actionGroup=="web"||actionGroup=="web-fall"||actionGroup=="dream-arrival"||actionGroup==DreamerSequenceMario.Group||actionGroup==BirthplaceMario.Group||!CapAccess.Flag(state,"transitioning"))
                 &&(returning||nativeCover||DeathMario.Active||transition||HazardPresentation||actionGroup=="roar"||actionGroup=="web"||UpgradeKnockoutMario.FollowingSoulFakeout||!CapAccess.Flag(state,"recoiling"));
         }
         private static void AfterPlayableRender(object __instance)
@@ -661,6 +663,7 @@ namespace HollowMario
                         Frame=ArrivalMario.HardLandingFrame(transitionLandingAge,Mathf.Max(.2f,CapAccess.Number(hero,"HARD_LANDING_TIME")))};
                 }
                 if(actionPose&&actionGroup=="upgrade")timedArrival=UpgradeKnockoutMario.TrySample(out arrival);
+                if(actionPose&&actionGroup==MonarchWingsMario.Group)timedArrival=MonarchWingsMario.TrySample(out arrival);
                 if(actionPose&&actionGroup=="web")timedArrival=WebbedMario.TrySample(out arrival);
                 if(actionPose&&actionGroup=="dream-arrival")timedArrival=DreamArrivalMario.TrySample(out arrival);
                 if(actionPose&&actionGroup==DreamerSequenceMario.Group)timedArrival=DreamerSequenceMario.TrySample(out arrival);
@@ -772,6 +775,7 @@ namespace HollowMario
             if(hazardPose)anchor=hazardAnchor+Vector3.up*(.7f*Mathf.Sin(Mathf.PI*Mathf.Clamp01(hazardAge/.45f)));
             if(DeathMario.Active)anchor=DeathMario.Feet;
             if(actionGroup=="upgrade"&&UpgradeKnockoutMario.Active)anchor=UpgradeKnockoutMario.Anchor;
+            if(actionGroup==MonarchWingsMario.Group&&MonarchWingsMario.Active)anchor=MonarchWingsMario.Anchor;
             if(actionGroup=="web"&&WebbedMario.Active)anchor=WebbedMario.Anchor;
             if(actionGroup=="dream-arrival"&&DreamArrivalMario.Active)anchor=DreamArrivalMario.Anchor;
             if(actionGroup==DreamerSequenceMario.Group&&DreamerSequenceMario.Active)anchor=DreamerSequenceMario.Anchor;
@@ -790,6 +794,7 @@ namespace HollowMario
             actionGroup=null;
             ArrivalMario.Forget();
             UpgradeKnockoutMario.Forget();
+            MonarchWingsMario.Forget();
             DreamNailMario.Forget();
             WebbedMario.Forget();
             DreamArrivalMario.Forget();

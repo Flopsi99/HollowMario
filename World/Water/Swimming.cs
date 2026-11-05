@@ -26,7 +26,6 @@ namespace HollowMario
         private const uint NormalJump = 0x03000880u;
         private const uint HoldNormalJump = 0x030008A0u;
         private const int LogLimit = 12;
-        private const int LogEvery = 30;
 
         private static MethodInfo setWaterLevel;
         private static Action<int, int> setIntegerLevel;
@@ -47,9 +46,8 @@ namespace HollowMario
         private static float surface = float.NaN;
         private static bool wasInWater;
         private static bool acidSurface;
+        private static bool projectedLiquid;
         private static Collider2D liquid;
-        private static int sinceLog;
-        private static int logs;
         private static bool wroteInputs;
         private static int exitLogs;
         private static FieldInfo marioWanted;
@@ -177,9 +175,9 @@ namespace HollowMario
             surface = float.NaN;
             wasInWater = false;
             acidSurface = false;
+            projectedLiquid = false;
             liquid = null;
-            sinceLog = 0;
-            logs = 0;
+            WaterSurfaceTrace.Forget();
             wroteInputs = false;
             exitLogs = 0;
             sensedHero = null;
@@ -190,8 +188,9 @@ namespace HollowMario
         }
 
         // The game's liquids are Water Surface triggers, plus Acid after Isma's Tear. Their top edge is the surface, so
-        // Mario is only told about water while he is actually inside one of those triggers: not a
-        // guessed height, and never the water of a pool somewhere above or beside him.
+        // Keep direct contact authoritative. Mario can also be below that trigger
+        // when its actual shape is overhead and no solid terrain separates him
+        // from its surface; never borrow a pool beside him or through a floor.
         internal static void Sense(object hero)
         {
             bool wasTouchingLiquid = touchingLiquid;
@@ -219,7 +218,8 @@ namespace HollowMario
             Vector2 point = new Vector2(bounds.center.x, bounds.min.y + 0.05f);
             KnightResetFollow follow = Plugin.Instance?.knightFollow;
             object controller = follow?.Controller();
-            if (controller != null && follow.MarioAlive(controller) && ReferenceEquals(follow.Hero(controller), hero))
+            bool marioActive=controller != null && follow.MarioAlive(controller) && ReferenceEquals(follow.Hero(controller), hero);
+            if (marioActive)
             {
                 Vector3? feet = follow.Ground(controller);
                 if (feet.HasValue) point = new Vector2(feet.Value.x, feet.Value.y + 0.05f);
@@ -234,10 +234,17 @@ namespace HollowMario
             bool fromAcid;
             Collider2D found;
             bool inside = Pooled(point, hero, out top, out fromAcid, out found);
+            bool projected=false;
+            if(!inside&&marioActive)
+            {
+                try{inside=WaterColumns.Find(point,hero,out top,out fromAcid,out found);projected=inside;}
+                catch(Exception){inside=false;} // Do not invent water after a failed geometry query.
+            }
             bool confirmed = inside;
             // A tiny geometric edge allowance replaces the old frame timers and the hidden
-            // Knight's stale swim flag. Retention cannot extend above/outside this real pool.
-            if (!inside && liquid != null && liquid.enabled && liquid.isTrigger && liquid.gameObject.activeInHierarchy
+            // Knight's stale swim flag. Only the physical trigger gets this
+            // allowance; projected columns are recomputed against live geometry.
+            if (!inside && !projectedLiquid && liquid != null && liquid.enabled && liquid.isTrigger && liquid.gameObject.activeInHierarchy
                 && (!acidSurface || AcidSafety.CanEnterAcid(hero)))
             {
                 Bounds pool = liquid.bounds;
@@ -265,10 +272,12 @@ namespace HollowMario
                 }
                 surface = top;
                 acidSurface = fromAcid;
+                projectedLiquid = projected;
                 liquid = found;
                 return;
             }
             wasInWater = acidSurface = false;
+            projectedLiquid = false;
             surface = float.NaN;
             liquid = null;
         }
@@ -287,6 +296,7 @@ namespace HollowMario
             Apply(id, wasInWater ? (surface - follow.Origin.y) / 0.0105f : NoWater);
             if (!wasInWater)
             {
+                WaterSurfaceTrace.Leave();
                 return;
             }
             Note(controller, follow);
@@ -503,25 +513,7 @@ namespace HollowMario
 
         private static void Note(object controller, KnightResetFollow follow)
         {
-            if (++sinceLog < LogEvery)
-            {
-                return;
-            }
-            sinceLog = 0;
-            if (logs >= LogLimit || Plugin.Instance == null)
-            {
-                return;
-            }
-            Vector3? at = follow.Ground(controller);
-            if (!at.HasValue)
-            {
-                return;
-            }
-            logs++;
-            float depth = surface - at.Value.y;
-            Plugin.Instance.Log.LogInfo(
-                "Water: Mario's feet are " + depth.ToString("0.00") + " below the water line, action "
-                + follow.Action(controller).ToString("X") + (follow.Grounded(controller) ? ", on the floor" : "") + ".");
+            WaterSurfaceTrace.Observe(liquid,acidSurface,projectedLiquid,surface,controller,follow);
         }
 
         private static void Apply(int id, float level)

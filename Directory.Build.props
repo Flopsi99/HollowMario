@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <!-- Public and ordinary local builds are quiet, including upgrades that
+         retain an older developer's verbose settings. Explicit opt-in is local. -->
+    <HollowMarioDiagnostics Condition="'$(HollowMarioDiagnostics)' == ''">false</HollowMarioDiagnostics>
+    <DefineConstants Condition="'$(HollowMarioDiagnostics)' == 'true'">$(DefineConstants);HOLLOW_MARIO_DIAGNOSTICS</DefineConstants>
+  </PropertyGroup>
+</Project>

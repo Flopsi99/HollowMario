@@ -8,7 +8,7 @@ Play Hollow Knight as Mario, with Mario movement and combat adapted to Hallownes
 The new community-API-only build has not been published on Melty yet.
 
 ### Play locally
-Download **HollowMario-0.10.117-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
+Download **HollowMario-0.10.121-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
 
 1. Extract the entire ZIP and open **HollowMario-Setup.exe**.
 2. Setup uses the community API and installs the supported official API automatically if needed.
@@ -32,7 +32,7 @@ Cap selection uses the configured Cap Selection binding plus a direction. API bi
 - **F8:** toggle boss HP display, initially hidden.
 - **F9:** return to the last bench.
 
-Debug keys can be rebound in the mod menu. Detailed logging starts off on new installs and can be enabled in the mod's debug configuration. The separate developer debug mod is not included.
+Debug keys can be rebound in the mod menu. This prerelease disables developer logging and camera/water trace files, including retained debug settings. The separate developer debug mod is not included.
 
 ## Credits
 

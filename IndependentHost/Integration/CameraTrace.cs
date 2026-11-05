@@ -34,6 +34,7 @@ namespace MarioHollow
         internal struct Scope {internal Collider2D Contact;internal CameraLockArea Area;internal string Phase;}
         internal struct LockState {internal int Area,Count,Mode;internal float Min,Max;internal bool Valid;}
         private static bool Active=>!failed&&enabled!=null&&enabled();
+        [Conditional("HOLLOW_MARIO_DIAGNOSTICS")]
         internal static void Install(Harmony hooks,Assembly companion,Func<Collider2D,bool> sensor)
         {
             enabled=(Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>),AccessTools.PropertyGetter(companion.GetType("HollowMario.DebugSettings",true),"CameraTrace"));

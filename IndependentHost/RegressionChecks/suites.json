@@ -430,6 +430,27 @@
     "source": "IndependentHost/RegressionChecks/Fixtures/RecoveryJumpChecks.cs"
   },
   {
+    "name": "WingsPickupChecks",
+    "kind": "native",
+    "source": "IndependentHost/RegressionChecks/Fixtures/WingsPickupChecks.cs"
+  },
+  {
+    "name": "QuietReleaseChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/QuietReleaseChecks.cs"
+  },
+  {
+    "name": "WaterTraceChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/WaterTraceChecks.cs"
+  },
+  {
+    "name": "WaterColumnChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/WaterColumnChecks.cs"
+  },
+  {
     "name": "CompoundCollisionChecks",
     "kind": "native",
     "hostReferences": true,

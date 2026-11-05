@@ -193,6 +193,9 @@ class CameraParityChecks {
   // Enable the real diagnostic hooks for both comparisons. Only scene lookups
   // and object descriptions are substituted; observers and file output run.
   var diagnostic=typeof(BridgeContracts).Assembly.GetType("MarioHollow.CameraTrace",true);
+  // Quiet production startup omits diagnostic hook installation. This fixture
+  // explicitly opts in to exercise observer parity in its isolated process.
+  if(!HostTrace.Available)diagnostic.GetMethod("Install",A).Invoke(null,new object[]{h,companion,(Func<Collider2D,bool>)IsPad});
   string tracePath=Path.Combine(args[0],".artifacts/independent-host/regressions/camera-read-only-"+Guid.NewGuid().ToString("N")+".log");
   diagnostic.GetField("path",A).SetValue(null,tracePath);diagnostic.GetField("enabled",A).SetValue(null,(Func<bool>)(()=>true));
   diagnostic.GetField("probe",A).SetValue(null,(Func<Collider2D,bool>)IsPad);

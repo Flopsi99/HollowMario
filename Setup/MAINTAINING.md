@@ -13,6 +13,13 @@ the Melty candidate and root melty.json from the canonical automatic recipe.
 Version numbers, manifests and archive names come from PluginVersion. Source
 stamps include tracked and untracked source files. Neither builder publishes.
 
+Ordinary builds are quiet: developer host events, camera/water file traces,
+verbose gameplay logs and performance-hook installation are disabled even with
+older saved debug settings. Essential errors and automated test reports remain.
+Explicit local diagnostic builds use the MSBuild property
+HollowMarioDiagnostics=true; no external crash-capture utility is packaged or
+started by either build. Keep private captures out of source and release files.
+
 Both launch workflows use the same setup executable. It verifies the supported
 game version, obtains official checksum-pinned API v77 if missing, installs the
 API payload, remembers the player's ROM and starts the original game. Manual

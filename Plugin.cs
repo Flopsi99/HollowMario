@@ -20,7 +20,7 @@ namespace HollowMario
 
         internal const string PluginName = "Hollow Mario";
 
-        internal const string PluginVersion = "0.10.117";
+        internal const string PluginVersion = "0.10.121";
 
         private void Awake()
         {
