@@ -41,11 +41,12 @@ Copy-Item -LiteralPath (Join-Path $root 'ThirdParty/LibTessDotNet/LICENSE.txt') 
 Copy-Item -LiteralPath (Join-Path $root 'IndependentHost/NOTICES.md') -Destination (Join-Path $stage 'NOTICES.md')
 Copy-Item -LiteralPath (Join-Path $root 'Setup/START-HERE.txt') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $root 'Setup/melty-recipe.draft.json') -Destination $stage
+[Reflection.Assembly]::LoadFrom((Join-Path $stage 'HollowMario.Setup.Core.dll'))|Out-Null
 $files=@(Get-ChildItem -LiteralPath $stage -Recurse -File|ForEach-Object {
     $relative=$_.FullName.Substring($stage.Length+1).Replace('\','/')
     if($relative -match '(?i)(^|/)(BepInEx|dispatch|injection)(/|$)|(^|/)(winhttp\.dll|doorstop_config\.ini|HollowMario\.Dispatch\.dll)$'){throw ('Retired injection input in release: '+$relative)}
     if($relative -match '(?i)(^|/)(MarioHollow\.dll|sm64\.dll|Assembly-CSharp[^/]*|UnityPlayer\.dll|hollow_knight\.exe|UnityEngine[^/]*\.dll)$|\.(z64|n64|v64|cfg|log)$|(^|/)settings/|user[1-4]\.dat'){throw ('Private/retired input in release: '+$relative)}
-    [ordered]@{Path=$relative;Sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
+    [ordered]@{Path=$relative;Sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant();SigningSha256=[HollowMario.Setup.Disk]::SigningHash($_.FullName)}
 })
 [ordered]@{SchemaVersion=1;Product='Hollow Mario';Version=$version;SupportedGameVersion='1.5.78.11833';CommunityApi='77';BuildMarioLocally=$true;Files=$files}|ConvertTo-Json -Depth 6|Set-Content -LiteralPath (Join-Path $stage 'package.json') -Encoding UTF8
 Add-Type -AssemblyName System.IO.Compression.FileSystem

@@ -35,6 +35,32 @@ namespace HollowMario.Setup
             using (var input = File.OpenRead(file)) using (var sha = SHA256.Create())
                 return BitConverter.ToString(sha.ComputeHash(input)).Replace("-", "").ToLowerInvariant();
         }
+        // Signing changes the PE checksum, certificate directory and appended
+        // certificate, but none of the loadable code/data. Hash everything else.
+        public static string SigningHash(string file)
+        {
+            byte[] bytes=File.ReadAllBytes(file);
+            if(bytes.Length<64||bytes[0]!=0x4d||bytes[1]!=0x5a)return null;
+            int pe=BitConverter.ToInt32(bytes,60);
+            if(pe<64||pe>bytes.Length-24||BitConverter.ToUInt32(bytes,pe)!=0x4550)return null;
+            int optional=pe+24, size=BitConverter.ToUInt16(bytes,pe+20);
+            if(size<152||optional>bytes.Length-size)return null;
+            int magic=BitConverter.ToUInt16(bytes,optional);
+            int directory=optional+(magic==0x10b?96:magic==0x20b?112:0);
+            if(directory==optional||directory+40>optional+size)return null;
+            int security=directory+32;
+            uint offset=BitConverter.ToUInt32(bytes,security),length=BitConverter.ToUInt32(bytes,security+4);
+            int end=bytes.Length;
+            if(offset!=0||length!=0)
+            {
+                if(offset<(uint)(optional+size)||length<8||(offset&7)!=0||(ulong)offset+length!=(ulong)bytes.Length)return null;
+                end=checked((int)offset);
+            }
+            Array.Clear(bytes,optional+64,4);Array.Clear(bytes,security,8);
+            // Authenticode adds zero alignment padding before the certificate.
+            byte[] normalized=new byte[checked((end+7)&~7)];Array.Copy(bytes,normalized,end);
+            using(var sha=SHA256.Create())return BitConverter.ToString(sha.ComputeHash(normalized)).Replace("-","").ToLowerInvariant();
+        }
         public static void AtomicWrite(string path, byte[] contents)
         {
             path = Path.GetFullPath(path);

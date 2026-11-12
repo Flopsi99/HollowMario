@@ -44,6 +44,7 @@ namespace HollowMario
             // HK already accepted a confirmed hit. A native wall/fall recovery
             // must not veto its knockback after masks have actually been lost.
             bool protectedNow=!confirmedHit&&((action&0x20000u)!=0||Marshal.ReadInt16(mario,0x26)!=0);
+            if(!protectedNow)NoBonk.CancelRecovery();
             Marshal.WriteInt16(state,2,(short)(protectedNow?1:0));
             try{return original(mario,amount,subtype,x,y,z);}
             finally{Marshal.WriteInt16(state,2,previous);}

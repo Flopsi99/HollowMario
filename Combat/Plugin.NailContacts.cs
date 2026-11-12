@@ -57,7 +57,23 @@ namespace HollowMario
                     }
                     Instance.Log.LogInfo("Mario's scenery strikes now use the Knight's own nail damager.");
                 }
-                ConfigureStrikeSource(damage, direction);
+                if(strikeSource==null)return null;
+                GameObject selected=strikeSource;
+                if(direction==NailHitDirection.Up)
+                {
+                    // Queued native receivers must not see their upward source
+                    // changed to downward by another contact in this same tick.
+                    if(upwardStrikeSource==null)
+                    {
+                        upwardStrikeSource=(GameObject)UnityEngine.Object.Instantiate(strikeSource);
+                        upwardStrikeSource.name="Mario's upward nail strike";
+                        UnityEngine.Object.DontDestroyOnLoad(upwardStrikeSource);
+                        upwardStrikeSource.SetActive(false);
+                    }
+                    selected=upwardStrikeSource;
+                }
+                ConfigureStrikeSource(selected,damage,direction);
+                return selected;
             }
             catch (Exception exception)
             {
@@ -96,13 +112,13 @@ namespace HollowMario
             return fallback;
         }
 
-        private static void ConfigureStrikeSource(int damage, float direction)
+        private static void ConfigureStrikeSource(GameObject source,int damage, float direction)
         {
-            if (strikeSource == null || fsmType == null)
+            if (source == null || fsmType == null)
             {
                 return;
             }
-            Component[] scripts = strikeSource.GetComponentsInChildren(fsmType, true);
+            Component[] scripts = source.GetComponentsInChildren(fsmType, true);
             for (int i = 0; i < scripts.Length; i++)
             {
                 Component script = scripts[i];
@@ -119,7 +135,7 @@ namespace HollowMario
                 KnightResetFollow follow=Instance?.knightFollow;
                 object controller=follow?.Controller();
                 SetScriptFloat(script,"magnitudeMult",NailCharmModifiers.Knockback(1f,controller==null?null:follow.Hero(controller)));
-                NailDamagerLookup.Register(strikeSource, script);
+                NailDamagerLookup.Register(source, script);
             }
         }
 
@@ -233,7 +249,9 @@ namespace HollowMario
                     if (!SceneryContact.IsHitShape(collider))
                     {ProjectileTrace.Result(trace,collider,target,"response changed target","inactive/destroyed after native Hit");continue;}
                     int acceptedNailContacts = nativeStruckThisSwing.Count + taggedStruckThisSwing.Count;
-                    GameObject striker = StrikeSource(damage, hitAngle);
+                    float contactAngle=NailHitDirection.ForContact(hitAngle,moveId,reach,collider.bounds);
+                    trace.Angle=contactAngle;
+                    GameObject striker = StrikeSource(damage, contactAngle);
                     if (striker != null)
                     {
                         striker.transform.position = new Vector3(centre.x, centre.y, knight.position.z);

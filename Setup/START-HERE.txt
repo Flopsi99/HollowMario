@@ -25,7 +25,7 @@ Each install/update removes recognized older Hollow Mario injection and API
 builds and old private profiles after migrating settings. Your current settings,
 ROMs, saves and other mods are preserved.
 
-To uninstall, open the manual setup and choose Remove Hollow Mario. It checks
+To uninstall, open the manual setup and choose Uninstall Hollow Mario. It checks
 current and older installations for the selected game, including disabled and old Floor
 Fix copies, and removes Hollow Mario's settings and cached downloads. No ROM is
 needed for removal. Your original game, saves, ROMs, shared mod loaders and other

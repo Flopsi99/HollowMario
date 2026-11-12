@@ -18,22 +18,27 @@ namespace HollowMario
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int WallAction(IntPtr mario);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int AirStep(IntPtr mario,uint flags);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate uint SetAction(IntPtr mario, uint action, uint argument);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void WalkingSpeed(IntPtr mario);
 
         private static readonly WallAction wallCallback = WallCheck, bonkCallback = AirHitWall;
+        private static readonly WallAction freefallCallback = Freefall;
+        private static readonly AirStep airStepCallback = StepAir;
         private static readonly SetAction actionCallback = ChooseAction;
         private static readonly WalkingSpeed walkingCallback = UpdateWalkingSpeed;
-        private static NativeDetour wallHook, bonkHook, actionHook;
-        private static WallAction originalWall, originalBonk;
+        private static NativeDetour wallHook, bonkHook, actionHook, airStepHook, freefallHook;
+        private static WallAction originalWall, originalBonk, originalFreefall;
+        private static AirStep originalAirStep;
         private static SetAction originalAction;
         private static NativeDetour walkingHook;
         private static WalkingSpeed originalWalking;
         private static string library;
         private static object sync;
         private static bool attempted;
-        internal static bool Armed => actionHook != null && wallHook != null && bonkHook != null;
+        internal static bool Armed => actionHook != null && wallHook != null && bonkHook != null && airStepHook != null && freefallHook != null;
         internal static bool GameplayTick => current.Active;
         internal static event Action<uint> ActionInitialized;
 
@@ -73,7 +78,7 @@ namespace HollowMario
             object hero = follow.Hero(controller);
             current = new Policy { Active = Armed, Claws = MovementUnlocks.HasClaws(hero), Dash = MovementUnlocks.HasDash(hero),
                 Dashmaster = MovementUnlocks.HasDashmaster(hero), NoBonk=MovementUnlocks.HasNoBonk(hero), RunMultiplier = MovementUnlocks.RunMultiplier(hero) };
-            NoBonk.Step(current.Active&&current.Claws&&current.NoBonk);
+            NoBonk.BeginTick(current.Active&&current.NoBonk,current.Claws);
         }
 
         // Finalizer restores nesting even if another prefix or the native tick throws. No ref
@@ -83,7 +88,7 @@ namespace HollowMario
         internal static void Install(string path, IntPtr module)
         {
             if (Armed) return;
-            var functions = NativeSymbols.Functions(path, module, "set_mario_action", "check_wall_kick", "act_air_hit_wall");
+            var functions = NativeSymbols.Functions(path, module, "set_mario_action", "check_wall_kick", "act_air_hit_wall", "perform_air_step", "act_freefall");
             try
             {
                 var manual = new NativeDetourConfig { ManualApply = true };
@@ -93,7 +98,11 @@ namespace HollowMario
                 originalWall = wallHook.GenerateTrampoline<WallAction>();
                 bonkHook = new NativeDetour(functions["act_air_hit_wall"], bonkCallback, manual);
                 originalBonk = bonkHook.GenerateTrampoline<WallAction>();
-                actionHook.Apply(); wallHook.Apply(); bonkHook.Apply();
+                airStepHook = new NativeDetour(functions["perform_air_step"], airStepCallback, manual);
+                originalAirStep = airStepHook.GenerateTrampoline<AirStep>();
+                freefallHook = new NativeDetour(functions["act_freefall"], freefallCallback, manual);
+                originalFreefall = freefallHook.GenerateTrampoline<WallAction>();
+                actionHook.Apply(); wallHook.Apply(); bonkHook.Apply(); airStepHook.Apply(); freefallHook.Apply();
             }
             catch { Dispose(); throw; }
             // Optional running bonus: a missing walking symbol must not disable the
@@ -135,12 +144,28 @@ namespace HollowMario
         private static int WallCheck(IntPtr mario)
         {
             if(current.Active&&!current.Claws)return 0;
-            if(current.Active&&current.NoBonk&&NoBonk.Prepare(mario,out NoBonk.Saved saved))
-            {
-                try{return originalWall(mario);}
-                finally{NoBonk.Restore(mario,saved);}
-            }
             return originalWall(mario);
+        }
+
+        private static int StepAir(IntPtr mario,uint flags)
+        {
+            uint action=unchecked((uint)Marshal.ReadInt32(mario,0xC));
+            int result=originalAirStep(mario,flags);
+            if(current.Active&&current.NoBonk)NoBonk.AirStep(mario,result,action);
+            return result;
+        }
+
+        private static int TryBonkWallKick(IntPtr mario)
+        {
+            if(!current.Active||!current.NoBonk||!current.Claws||!NoBonk.PrepareKick(mario,out NoBonk.Saved saved))return 0;
+            try{return originalWall(mario);}
+            finally{NoBonk.RestoreKick(mario,saved);}
+        }
+
+        private static int Freefall(IntPtr mario)
+        {
+            int kick=TryBonkWallKick(mario);
+            return kick!=0?kick:originalFreefall(mario);
         }
 
         private static int AirHitWall(IntPtr mario)
@@ -165,9 +190,15 @@ namespace HollowMario
             // Substitute before the engine initializes long-jump velocity/animation/sounds.
             // Its own normal jump initializer handles the still-valid jump input instead.
             if (current.Active && !current.Dash && action == LongJump) action = Jump;
+            if (current.Active && current.NoBonk)
+            {
+                action = NoBonk.RemapAction(mario,before,action,current.Claws);
+                int kick=TryBonkWallKick(mario);
+                if(kick!=0)return unchecked((uint)kick);
+            }
             if (current.Active) action = QuickSlash.RemapAction(mario, action);
             uint result = originalAction(mario, action, argument);
-            NoBonk.ActionInitialized(mario,before,*(uint*)((byte*)mario+0xC),current.Active&&current.Claws&&current.NoBonk);
+            NoBonk.ActionInitialized(mario,*(uint*)((byte*)mario+0xC));
             // Both grounded and aerial long jumps pass through this one initializer. Boost
             // its completed horizontal launch once, after the normal acceleration/cap,
             // so no tick-by-tick compounding or extra upward speed is introduced.
@@ -191,8 +222,8 @@ namespace HollowMario
                 ThinPlatformLedges.Dispose();
                 GroundStepEdges.Dispose();
                 NoBonk.Forget();
-                bonkHook?.Dispose(); wallHook?.Dispose(); actionHook?.Dispose();
-                bonkHook = wallHook = actionHook = null;
+                freefallHook?.Dispose(); airStepHook?.Dispose(); bonkHook?.Dispose(); wallHook?.Dispose(); actionHook?.Dispose();
+                freefallHook = airStepHook = bonkHook = wallHook = actionHook = null;
             }
         }
     }

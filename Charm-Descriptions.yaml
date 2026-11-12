@@ -59,10 +59,14 @@ movement:
     slot: 14
     description_key: CHARM_DESC_14
     mario_behavior: |-
-      With Wall Jump unlocked, Jump can cancel a recent wall bonk into a wall jump,
-      including a dive into a wall. Does not cancel enemy or hazard knockback.
+      Wall bonks immediately return Mario to normal falling, including after a dive.
+      Recovery happens once per contact; holding the wall cannot refresh it.
+      Experimental ground-pound bonk recovery has one separate use until landing.
+      Works before Wall Jump and permits the normal airborne moves and ledge grabs.
+      With Wall Jump unlocked, Jump can still kick off a recent wall collision.
+      Existing dash/Wings charges and enemy/hazard knockback rules still apply.
     verification: |-
-      Implemented; live wall and dive recovery still need gameplay review.
+      Implemented; normal-fall recovery still needs in-game feel review.
     new_description: |-
       Turns a collision into a second chance.
 

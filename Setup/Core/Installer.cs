@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,7 +22,8 @@ namespace HollowMario.Setup
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var file in Manifest.Files)
                 if (!names.Add(file.Path) || !File.Exists(Disk.Under(PackageDirectory, file.Path)) ||
-                    !Disk.Hash(Disk.Under(PackageDirectory, file.Path)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase))
+                    (!Disk.Hash(Disk.Under(PackageDirectory, file.Path)).Equals(file.Sha256, StringComparison.OrdinalIgnoreCase)&&
+                     (string.IsNullOrEmpty(file.SigningSha256)||!string.Equals(Disk.SigningHash(Disk.Under(PackageDirectory,file.Path)),file.SigningSha256,StringComparison.OrdinalIgnoreCase))))
                     throw new InvalidDataException("The Hollow Mario download is incomplete or damaged. Extract the full download and try again.");
         }
         public void ApplyPayload(string variant, string destination)
@@ -59,6 +60,9 @@ namespace HollowMario.Setup
             CheckCommunity(game);
             if (preparedNative != null && !File.Exists(Disk.Under(preparedNative,"sm64.dll")))
                 throw new InvalidDataException("Melty has not finished preparing Mario's engine. Reinstall this release in Melty, then try again.");
+            // Melty may prepare directly in the final runtime folder. Preserve
+            // its bytes before retiring a legacy bridge in that same folder.
+            byte[] preparedBytes=preparedNative==null?null:File.ReadAllBytes(Disk.Under(preparedNative,"sm64.dll"));
             // Validate every obsolete removal target before changing any files.
             // Keep this plan until settings migration and the new payload finish.
             var obsolete=new Uninstaller(game);
@@ -92,9 +96,7 @@ namespace HollowMario.Setup
             ApplyPayload("api", target);
             if (preparedNative != null)
             {
-                string native = Disk.Under(preparedNative, "sm64.dll");
-                if (!File.Exists(native)) throw new InvalidDataException("Melty has not finished preparing Mario's engine. Reinstall this release in Melty, then try again.");
-                Disk.Copy(native, Disk.Under(target, "MarioHollow-native/sm64.dll"));
+                Disk.AtomicWrite(Disk.Under(target, "MarioHollow-native/sm64.dll"),preparedBytes);
             }
             else if(Manifest.BuildMarioLocally)NativeRuntime.Ensure(PackageDirectory,Disk.Under(target,"MarioHollow-native"),progress);
             if (File.Exists(doorstop))

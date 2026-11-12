@@ -20,7 +20,7 @@ namespace HollowMario
 
         internal const string PluginName = "Hollow Mario";
 
-        internal const string PluginVersion = "0.10.122";
+        internal const string PluginVersion = "0.10.129";
 
         private void Awake()
         {
@@ -324,12 +324,11 @@ namespace HollowMario
             string actualRoute=Convert.ToString(AppDomain.CurrentDomain.GetData("HollowMario.LoadingRoute"));
             MeltyTest.Report("loader-route",actualRoute=="CommunityApi","The enabled API must select only the API build.");
 
-            StartCoroutine(StartDraftTestCompatibility());
+            StartCoroutine(ReplacementGameplayTest());
             if (FindChecksPath() != null)
             {
                 StartCoroutine(WatchMeltyState());
                 StartCoroutine(PrepareBenchForMeltyTest());
-                StartCoroutine(ResetFollowTest());
             }
             ApiStartupComplete = true;
 

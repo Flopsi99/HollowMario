@@ -62,8 +62,20 @@ namespace HollowMario.Host.Unity
         }
         public void Dispose()
         {
-            if(disposed)return;disposed=true;stopping=true;filter.Output=null;source.Stop();producer.Join();queue.Clear();
-            UnityEngine.Object.Destroy(owner);UnityEngine.Object.Destroy(clip);
+            if(disposed)return;disposed=true;stopping=true;
+            // Unity may destroy the carrier before the plugin during shutdown.
+            // Always join the producer before its native engine is released.
+            try
+            {
+                if(filter)filter.Output=null;
+                if(source)source.Stop();
+            }
+            finally
+            {
+                producer.Join();queue.Clear();
+                if(owner)UnityEngine.Object.Destroy(owner);
+                if(clip)UnityEngine.Object.Destroy(clip);
+            }
         }
     }
     public sealed class DspOutput:MonoBehaviour

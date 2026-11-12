@@ -5,10 +5,10 @@ Play Hollow Knight as Mario, with Mario movement and combat adapted to Hallownes
 ## Download and play
 
 ### Play via Melty
-The new community-API-only build has not been published on Melty yet.
+For this prerelease, use the GitHub download below.
 
 ### Play locally
-Download **HollowMario-0.10.122-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
+Download **HollowMario-0.10.129-Windows.zip** from [Releases](https://github.com/Flopsi99/HollowMario/releases).
 
 1. Extract the entire ZIP and open **HollowMario-Setup.exe**.
 2. Setup uses the community API and installs the supported official API automatically if needed.

@@ -14,6 +14,7 @@ internal static class Program
         try
         {
             string scratch=Path.GetFullPath(args[0]);Directory.CreateDirectory(scratch);
+            count+=SigningChecks.Run(Path.Combine(scratch,"signing"));
             string package=Path.Combine(scratch,"package"), game=Path.Combine(scratch,"game"), profile=Path.Combine(scratch,"profile");
             Write(package,"payloads/api/HollowMario.dll","first API version");
             var manifest=new PackageManifest{Version="0.10.0",Files=Directory.GetFiles(package,"*",SearchOption.AllDirectories).Select(x=>new PackageFile{Path=x.Substring(package.Length+1).Replace('\\','/'),Sha256=Disk.Hash(x)}).ToArray()};
@@ -101,6 +102,10 @@ internal static class Program
             Write(game,"hollow_knight_Data/Managed/Mods/HollowMario/MarioHollow-native/MarioHollow.dll","retired engine fixture");
             update.PrepareCommunity(game,Path.Combine(scratch,"backups"),preparedNative:native);
             Check(File.ReadAllText(Path.Combine(game,"hollow_knight_Data/Managed/Mods/HollowMario/MarioHollow-native/sm64.dll"))=="platform-prepared runtime","Prepared runtime survives retiring the old bridge.");
+            string sameNative=Path.Combine(game,"hollow_knight_Data/Managed/Mods/HollowMario/MarioHollow-native");
+            Write(sameNative,"MarioHollow.dll","legacy bridge beside prepared runtime");
+            update.PrepareCommunity(game,Path.Combine(scratch,"backups"),preparedNative:sameNative);
+            Check(File.ReadAllText(Path.Combine(sameNative,"sm64.dll"))=="platform-prepared runtime"&&!File.Exists(Path.Combine(sameNative,"MarioHollow.dll")),"Prepared runtime survives same-folder legacy cleanup.");
             Check(!File.Exists(Path.Combine(game,"BepInEx/plugins/HollowMarioEngine/MarioHollow.dll"))&&File.Exists(Path.Combine(game,"BepInEx/plugins/HollowMarioEngine/player.z64")),"Retired injection bridge removed while player's ROM is kept.");
             string fresh=Path.Combine(scratch,"fresh-game");
             Write(fresh,"hollow_knight.exe","fixture executable; never run");

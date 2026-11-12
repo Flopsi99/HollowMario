@@ -39,6 +39,7 @@ static class Program
 {
     const uint Punch=0x00800380,Move=0x00800457,Kick=0x018008AC,Idle=0x0C400201,Fall=0x0100088C,Land=0x04000471,Dive=0x0188088A,Pound=0x008008A9,LongJump=0x03000888,Jump=0x03000880;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int Step(IntPtr mario);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate int AirStep(IntPtr mario,uint flags);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate uint SetAction(IntPtr mario,uint action,uint argument);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate void Walking(IntPtr mario);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] delegate float Floor(float x,float y,float z,out IntPtr floor);
@@ -115,11 +116,13 @@ static class Program
         Check(delay.Value==0.2f,"Player-editable setting defaults to 0.2 seconds.");
         Thunk("set_mario_action",(SetAction)OriginalSet);
         Thunk("check_wall_kick",(Step)(m=>0));Thunk("act_air_hit_wall",(Step)(m=>0));Thunk("update_walking_speed",(Walking)(m=>{}));
+        Thunk("perform_air_step",(AirStep)((m,flags)=>0));Thunk("act_freefall",(Step)(m=>0));
         Thunk("find_floor",(Floor)OriginalFloor);Thunk("stop_and_set_height_to_floor",(Walking)OriginalStop);
         IntPtr p=Thunk("act_punching",(Step)OriginalPunch),q=Thunk("act_move_punching",(Step)OriginalPunch),r=Thunk("act_jump_kick",(Step)OriginalKick);
         set=(SetAction)Marshal.GetDelegateForFunctionPointer(NativeSymbols.Map["set_mario_action"],typeof(SetAction));
         punch=(Step)Marshal.GetDelegateForFunctionPointer(p,typeof(Step));moving=(Step)Marshal.GetDelegateForFunctionPointer(q,typeof(Step));kick=(Step)Marshal.GetDelegateForFunctionPointer(r,typeof(Step));
         NativeMovementGates.Configure(typeof(TestNative));NativeMovementGates.Install("fixture",new IntPtr(1));
+        Check(NativeMovementGates.Armed,"All movement detours must be installed before checking Quick Slash recovery.");
         QuickSlash.Configure(typeof(TestNative),Plugin.Instance.Log);QuickSlash.Install("fixture",new IntPtr(1));
         var tick=AccessTools.Method(typeof(Program),"Tick");
         h.Patch(tick,prefix:new HarmonyMethod(typeof(NativeMovementGates),nameof(NativeMovementGates.BeforeTick)){priority=Priority.First+100},finalizer:new HarmonyMethod(typeof(NativeMovementGates),nameof(NativeMovementGates.AfterTick)));

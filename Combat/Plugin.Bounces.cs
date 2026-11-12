@@ -93,7 +93,7 @@ namespace HollowMario
                     break;
                 }
             }
-            if (chosen == null || !CanLand(chosen, StompGap)) return;
+            if (chosen == null || ((chosenMushroom || pounding) && !CanLand(chosen, StompGap))) return;
             if (chosenMushroom)
             {
                 RecordLanding(chosen);
@@ -110,7 +110,9 @@ namespace HollowMario
             }
             int stompDamage = (int)NailCollisionSignals.DamageMultiplier(pounding ? 2f : 1f, action, follow.Animation(controller));
             string targetName = chosen.name;
+            long epoch=GameplayEpoch(controller);
             if (!HitEnemyFromAbove(chosen, knight.gameObject, stompDamage, !pounding)) return;
+            if(!GameplayTickCurrent(controller,epoch))return;
             PlaceStompContact(controller, follow, start, feet.Value, firstContact);
             if (pounding) Pogo(controller, follow, targetName);
             if (stompLogs++ < 20)
@@ -125,6 +127,14 @@ namespace HollowMario
         private static bool HitEnemyFromAbove(Component enemy, GameObject source, int multiplier, bool protectStomp = false)
         {
             if (!ArmedNailHit() || !IsEnemy(enemy) || IsGone(enemy)) return false;
+            // A short bounce can return before another hit is allowed. It is
+            // still a valid landing: bounce and protect that top contact without
+            // sending damage or postponing the next eligible hit.
+            if(protectStomp&&!CanLand(enemy,RepeatStompGap))
+            {
+                NativeDamageTimer.GrantStomp(source.GetComponent(AccessTools.TypeByName("HeroController")));
+                return true;
+            }
             object hit = HitFromAbove(source, multiplier);
             if (hit == null) return false;
             int before = (int)hpField.GetValue(enemy);
@@ -143,8 +153,9 @@ namespace HollowMario
                 return false;
             }
             finally { deliveringTopHit=outer; }
-            EnemyLostHealth(enemy, before); // Diagnose native rejections; retain ordinary armour pogos.
+            bool damaged=EnemyLostHealth(enemy,before); // Retain ordinary armour pogos.
             RecordLanding(objectId);
+            if(damaged)NotifyEnemyNailHit(enemy);
             return true;
         }
 
@@ -229,7 +240,7 @@ namespace HollowMario
             Transform hero = follow.HeroTransform(lastController);
             Collider2D body = hero == null ? null : hero.GetComponent<Collider2D>();
             Component enemy = FindParent(source.transform, healthManagerType);
-            if (body == null || enemy == null || IsGone(enemy) || !CanLand(enemy, StompGap)) return false;
+            if (body == null || enemy == null || IsGone(enemy) || (pounding && !CanLand(enemy, StompGap))) return false;
             Bounds attackBody = NailCharmReach.Scale(body.bounds, body.bounds.center,
                 NailCharmReach.Multiplier(follow.Hero(lastController)));
             // Only actual enemy bodies qualify. Explosion/awareness triggers must
@@ -252,10 +263,13 @@ namespace HollowMario
             int damage = (int)NailCollisionSignals.DamageMultiplier(pounding ? 2f : 1f, move, follow.Animation(lastController));
             // Physics can report this contact before the attack tick. Send the same native
             // downward hit here; bouncing first changes Mario's action and loses that hit.
+            object controller=lastController;
+            long epoch=GameplayEpoch(controller);
             if (!HitEnemyFromAbove(enemy, hero.gameObject, damage, !pounding)) return false;
-            PlaceStompContact(lastController, follow, stompTickStart ?? feet.Value, feet.Value, contact);
-            if(pounding) Pogo(lastController, follow, targetName);
-            else Bounce(lastController, follow);
+            if(!GameplayTickCurrent(controller,epoch))return true;
+            PlaceStompContact(controller, follow, stompTickStart ?? feet.Value, feet.Value, contact);
+            if(pounding) Pogo(controller, follow, targetName);
+            else Bounce(controller, follow);
             return true;
         }
 

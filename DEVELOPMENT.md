@@ -1,6 +1,6 @@
 # Hollow Mario
 
-Current local candidate: **0.10.122** (community API only).
+Current local candidate: **0.10.129** (community API only).
 Recent work covers Mario interactions, spells, arrivals, death/hazard recovery,
 bench and map poses, web capture, creator unlock artwork/text, sound settings
 and optional hitbox display. The Shaman knockout now also follows native FSM
@@ -14,8 +14,9 @@ Grubberfly's Elegy uses native pooled beams on punches and kick strikes only;
 slides, dives and pounds do not fire beams. Native health/Joni/Fury and Mark of
 Pride beam rules apply. Quick Slash supports hit-confirmed punch/short-hop
 recovery and adjustable air-kick recovery (default 0.2 seconds).
-Steady Body becomes No Bonk Badge: a short wall-bonk recovery into a wall jump,
-including after a dive, while retaining the Wall Jump upgrade requirement.
+Steady Body becomes No Bonk Badge: wall bonks return Mario to normal falling,
+including after a dive and before Wall Jump, with normal airborne moves available.
+With Wall Jump unlocked, a fresh Jump press can still kick off a recent wall bonk.
 The creator has tested Grimmchild
 and Weaversong successfully; this does not imply every charm combination passed.
 F7 hitboxes and F8 boss HP start off; debug binds are editable in the API menu.

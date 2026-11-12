@@ -213,6 +213,7 @@
   {
     "name": "NoBonkNativeChecks",
     "kind": "native",
+    "hostReferences": true,
     "source": ".artifacts/NoBonkNativeChecks.cs"
   },
   {
@@ -254,6 +255,18 @@
     "name": "SpellPoseChecks",
     "kind": "native",
     "source": ".artifacts/spell-presentation/SpellPoseChecks.cs"
+  },
+  {
+    "name": "PoundDirectionChecks",
+    "kind": "fixture",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/PoundDirectionChecks.cs"
+  },
+  {
+    "name": "RepeatStompChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/RepeatStompChecks.cs"
   },
   {
     "name": "StompParryChecks",

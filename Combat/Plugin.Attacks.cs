@@ -140,6 +140,7 @@ namespace HollowMario
         private static void StrikePostfix(EnemyStrike __state)
         {
             if (ReferenceEquals(__state.Target, null)) return;
+            long epoch=GameplayEpoch(__state.Controller);
             // A native blocked hit also emits HIT/particles. Do not replay it on
             // every simulation tick just because an armoured boss lost no HP.
             if(__state.Blocked)hitThisSwing.Add(__state.ReceiverId);
@@ -148,16 +149,26 @@ namespace HollowMario
                 RecordLanding(__state.ObjectId);
                 hitThisSwing.Add(__state.ReceiverId);
                 QuickSlash.Confirmed(__state.Controller, __state.Action, __state.Move);
-                // HealthManager.Hit has completed, so an immediate enemy reaction
-                // cannot withdraw its hurtbox before Mario's damage is applied.
-                if (__state.Target != null && sendFsmEvent != null)
-                {
-                    try { sendFsmEvent.Invoke(null, new object[] { __state.Target.gameObject, "TAKE DAMAGE", false }); }
-                    catch (Exception error) { Instance?.Log.LogWarning("Enemy nail reaction: " + error.GetBaseException().Message); }
-                }
+                NotifyEnemyNailHit(__state.Target);
             }
+            if(!GameplayTickCurrent(__state.Controller,epoch))return;
             if (__state.Bounce) Pogo(__state.Controller, Instance.knightFollow, __state.Name);
             NativeDamageTimer.FinishDiveHit(__state.Dive);
+        }
+
+        private static void NotifyEnemyNailHit(Component target)
+        {
+            if(target==null||sendFsmEvent==null)return;
+            // Use the game's normal nail reaction after damage. Reactions may
+            // withdraw a hurtbox or start a cutscene synchronously.
+            bool outer=deliveringTopHit;
+            try
+            {
+                deliveringTopHit=true;
+                sendFsmEvent.Invoke(null,new object[]{target.gameObject,"TAKE DAMAGE",false});
+            }
+            catch(Exception error){Instance?.Log.LogWarning("Enemy nail reaction: "+error.GetBaseException().Message);}
+            finally{deliveringTopHit=outer;}
         }
 
         internal static void QuickSlashNeutral(object controller)
@@ -294,7 +305,23 @@ namespace HollowMario
         }
 
         private static bool TouchesHurtbox(Component target, Bounds reach, Vector3 motion, uint action, int animation)
+            =>TryHurtbox(target,reach,motion,action,animation,out _);
+
+        internal static float PoundHitDirection(string move,object target)
         {
+            var component=target as Component;
+            KnightResetFollow follow=Instance?.knightFollow;
+            object controller=follow?.Controller();
+            Collider2D body=controller==null?null:follow.HeroTransform(controller)?.GetComponent<Collider2D>();
+            if(component==null||body==null||!MoveShape(move,out float pad,out float forward,out float up))return NailHitDirection.Down;
+            Bounds reach=SceneryContact.Reach(body.bounds,1f,pad,forward,up,NailCharmReach.Multiplier(follow.Hero(controller)));
+            return TryHurtbox(component,reach,Vector3.zero,follow.Action(controller),follow.Animation(controller),out Bounds contact)
+                ?NailHitDirection.ForContact(NailHitDirection.Down,move,reach,contact):NailHitDirection.Down;
+        }
+
+        private static bool TryHurtbox(Component target,Bounds reach,Vector3 motion,uint action,int animation,out Bounds contact)
+        {
+            contact=default(Bounds);
             bool enemy = IsEnemy(target);
             Collider2D[] colliders = target.GetComponentsInChildren<Collider2D>(true);
             for (int i = 0; i < colliders.Length; i++)
@@ -311,6 +338,7 @@ namespace HollowMario
                 {
                     if (SceneryContact.Sweeps(reach, motion, collider.bounds))
                     {
+                        contact=collider.bounds;
                         return true;
                     }
                 }

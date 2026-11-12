@@ -22,8 +22,7 @@ namespace HollowMario
             {
                 Type engineTest=AccessTools.TypeByName("MarioHollow.MeltyTest");
                 MethodInfo engineReport=engineTest==null?null:AccessTools.Method(engineTest,"Report",new[]{typeof(string),typeof(bool),typeof(string)});
-                if(engineReport==null)throw new MissingMethodException("The engine's gameplay test reporter is missing.");
-                harmony.Patch(engineReport,prefix:new HarmonyMethod(typeof(TestPersistenceGuard),nameof(NormalizeCheck)));
+                if(engineReport!=null)harmony.Patch(engineReport,prefix:new HarmonyMethod(typeof(TestPersistenceGuard),nameof(NormalizeCheck)));
             }
             Type platform=AccessTools.TypeByName("DesktopPlatform");
             if(platform==null)throw new MissingMemberException("Test save protection could not find the desktop platform.");

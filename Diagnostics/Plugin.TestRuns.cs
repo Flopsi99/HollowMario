@@ -26,7 +26,7 @@ namespace HollowMario
             bool sceneReady=false;
             while(Time.unscaledTime<deadline)
             {
-                hero=TestSingleton(heroType,"instance");
+                hero=TestSingleton(heroType,"SilentInstance");
                 object game=TestSingleton(gameType,"UnsafeInstance");
                 if(hero is Component body&&body!=null&&Convert.ToString(Read(game,"gameState"))=="PLAYING"&&!Equals(Read(Read(hero,"cState"),"transitioning"),true)){sceneReady=true;break;}
                 yield return null;
@@ -42,7 +42,7 @@ namespace HollowMario
             {
                 meltyStage="waiting-control";
                 yield return null;
-                hero=TestSingleton(heroType,"instance");
+                hero=TestSingleton(heroType,"SilentInstance");
             }
             if(Equals(Read(hero,"acceptingInput"),true)&&!Equals(Read(hero,"controlReqlinquished"),true))
             {meltyBenchExited=true;meltyStage="gameplay";yield break;}
@@ -143,7 +143,7 @@ namespace HollowMario
                 while(File.Exists(testFile))
                 {
                     Type heroType=AccessTools.TypeByName("HeroController"),gameType=AccessTools.TypeByName("GameManager");
-                    object hero=TestSingleton(heroType,"instance"),game=TestSingleton(gameType,"UnsafeInstance");
+                    object hero=TestSingleton(heroType,"SilentInstance"),game=TestSingleton(gameType,"UnsafeInstance");
                     Component body=hero as Component;
                     Vector3 at=body==null?Vector3.zero:body.transform.position;
                     Func<object,string,string> flag=(owner,name)=>Equals(Read(owner,name),true)?"true":"false";

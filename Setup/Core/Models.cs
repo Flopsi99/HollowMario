@@ -57,6 +57,7 @@ namespace HollowMario.Setup
     {
         [DataMember] public string Path;
         [DataMember] public string Sha256;
+        [DataMember(EmitDefaultValue=false)] public string SigningSha256;
     }
     public static class JsonFile
     {

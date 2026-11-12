@@ -35,6 +35,8 @@ namespace HollowMario
 
         private const float StompGap = 0.7f;
 
+        private const float RepeatStompGap = 0.2f;
+
         private const float StompBounce = 60f;
 
         private const float StompGuard = 0.3f;
@@ -188,6 +190,7 @@ namespace HollowMario
         private static readonly Dictionary<string, int> swingSeen = new Dictionary<string, int>();
 
         private static GameObject strikeSource;
+        private static GameObject upwardStrikeSource;
 
         private static bool strikeSourceTried;
 
