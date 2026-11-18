@@ -6,6 +6,12 @@ using System.Runtime.InteropServices;
 using HollowMario;
 using UnityEngine;
 class ConversationChecks {
+ public class MissingHero {
+  public static int NoisyReads,SilentReads;
+  public static object instance {get {NoisyReads++;return null;}}
+  public static object SilentInstance {get {SilentReads++;return null;}}
+ }
+ public class ParkedController {public bool Wanted=true;public int MarioId=-1;}
  static int muted;
  static void SoundObserved(uint __0,bool __result){if(__result)muted++;}
  static BindingFlags S=BindingFlags.Static|BindingFlags.NonPublic;
@@ -23,6 +29,15 @@ class ConversationChecks {
   var conversation=companion.GetType("HollowMario.ConversationMario",true);
   conversation.GetMethod("Arm",S).Invoke(null,new object[]{hooks,engine.GetType("MarioHollow.MarioController"),native,logger});
   var game=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
+  var heroTypeField=conversation.GetField("heroType",S);object realHeroType=heroTypeField.GetValue(null);
+  try{
+   heroTypeField.SetValue(null,typeof(MissingHero));var parked=new ParkedController();
+   for(int frame=0;frame<100;frame++){
+    conversation.GetMethod("ObserveTransition",S).Invoke(null,new object[]{parked});
+    conversation.GetMethod("ObserveNativeControl",S).Invoke(null,new object[]{parked});
+   }
+   Check(MissingHero.NoisyReads==0&&MissingHero.SilentReads==200,"Menu polling tolerates an absent hero without calling the warning-producing singleton getter");
+  }finally{heroTypeField.SetValue(null,realHeroType);}
   foreach(string name in new[]{"Tk2dPlayAnimation","Tk2dPlayAnimationWithEvents"})Check(harmony.GetMethod("GetPatchInfo").Invoke(null,new object[]{game.GetType("HutongGames.PlayMaker.Actions."+name).GetMethod("OnEnter")})!=null,"Native dialogue animation hook installed: "+name);
   var scope=conversation.GetMethod("KnownInteraction",S);var facing=conversation.GetMethod("Facing",S);
   Check((bool)scope.Invoke(null,new object[]{"Conversation Control"}),"Native NPC interaction accepted");

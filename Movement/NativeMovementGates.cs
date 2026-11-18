@@ -47,6 +47,7 @@ namespace HollowMario
 
         internal static void Configure(Type native)
         {
+            VerticalConveyors.Configure(native);
             library = Path.Combine(Path.GetDirectoryName(native.Assembly.Location), "sm64.dll");
             sync = native.GetField("Sync", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null) ?? new object();
         }
@@ -79,6 +80,7 @@ namespace HollowMario
             current = new Policy { Active = Armed, Claws = MovementUnlocks.HasClaws(hero), Dash = MovementUnlocks.HasDash(hero),
                 Dashmaster = MovementUnlocks.HasDashmaster(hero), NoBonk=MovementUnlocks.HasNoBonk(hero), RunMultiplier = MovementUnlocks.RunMultiplier(hero) };
             NoBonk.BeginTick(current.Active&&current.NoBonk,current.Claws);
+            VerticalConveyors.BeginTick(current.Active&&current.Claws&&!CapAccess.Flag(controller,"DamagePending"),__0);
         }
 
         // Finalizer restores nesting even if another prefix or the native tick throws. No ref
@@ -123,6 +125,8 @@ namespace HollowMario
             catch(Exception error){Plugin.Instance?.Log.LogWarning("Shallow-platform ledge grabs unavailable: "+error.Message);}
             try{GroundStepEdges.Install(path,module);}
             catch(Exception error){Plugin.Instance?.Log.LogWarning("Flat-ledge falling fix unavailable: "+error.Message);}
+            try{VerticalConveyors.Install(path,module);}
+            catch(Exception error){Plugin.Instance?.Log.LogWarning("Vertical conveyor wall jumps unavailable: "+error.Message);}
         }
 
         private static unsafe void UpdateWalkingSpeed(IntPtr mario)
@@ -150,13 +154,21 @@ namespace HollowMario
         private static int StepAir(IntPtr mario,uint flags)
         {
             uint action=unchecked((uint)Marshal.ReadInt32(mario,0xC));
+            if(current.Active&&current.Claws)VerticalConveyors.BeforeAirStep(mario);
             int result=originalAirStep(mario,flags);
+            if(current.Active&&current.Claws&&VerticalConveyors.AfterAirStep(mario,result,action))
+            {
+                if(unchecked((uint)Marshal.ReadInt32(mario,0xC))!=0x0100088Cu)ChooseAction(mario,0x0100088Cu,0);
+                result=0; // Collision already resolved; suppress the native bonk response.
+            }
             if(current.Active&&current.NoBonk)NoBonk.AirStep(mario,result,action);
             return result;
         }
 
         private static int TryBonkWallKick(IntPtr mario)
         {
+            if(current.Active&&current.Claws&&VerticalConveyors.PrepareKick(mario,out VerticalConveyors.Saved belt))
+            {try{return originalWall(mario);}finally{VerticalConveyors.RestoreKick(mario,belt);}}
             if(!current.Active||!current.NoBonk||!current.Claws||!NoBonk.PrepareKick(mario,out NoBonk.Saved saved))return 0;
             try{return originalWall(mario);}
             finally{NoBonk.RestoreKick(mario,saved);}
@@ -187,12 +199,16 @@ namespace HollowMario
         private static unsafe uint ChooseAction(IntPtr mario, uint action, uint argument)
         {
             uint before = *(uint*)((byte*)mario + 0xC);
+            VerticalConveyors.ActionInitialized(mario,action);
             // Substitute before the engine initializes long-jump velocity/animation/sounds.
             // Its own normal jump initializer handles the still-valid jump input instead.
             if (current.Active && !current.Dash && action == LongJump) action = Jump;
             if (current.Active && current.NoBonk)
             {
                 action = NoBonk.RemapAction(mario,before,action,current.Claws);
+            }
+            if(current.Active&&current.Claws)
+            {
                 int kick=TryBonkWallKick(mario);
                 if(kick!=0)return unchecked((uint)kick);
             }
@@ -222,6 +238,7 @@ namespace HollowMario
                 ThinPlatformLedges.Dispose();
                 GroundStepEdges.Dispose();
                 NoBonk.Forget();
+                VerticalConveyors.Dispose();
                 freefallHook?.Dispose(); airStepHook?.Dispose(); bonkHook?.Dispose(); wallHook?.Dispose(); actionHook?.Dispose();
                 freefallHook = airStepHook = bonkHook = wallHook = actionHook = null;
             }

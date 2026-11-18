@@ -154,7 +154,7 @@ namespace HollowMario
         {
             if((requested&&!returning)||!CapAccess.Flag(controller,"Wanted")
                 ||Convert.ToInt32(CapAccess.Read(controller,"MarioId"))>=0)return;
-            try{CoverLockedHero(controller,CapAccess.Read(heroType,"instance") as Component,false);}
+            try{CoverLockedHero(controller,CapAccess.Read(heroType,"SilentInstance") as Component,false);}
             catch(Exception error){Stop();Warn(error);}
         }
         private static void CoverLockedHero(object controller,Component current,bool takingControl)
@@ -326,7 +326,7 @@ namespace HollowMario
             // Scene-load callbacks can dispose the outgoing view after EnterScene
             // has already been called. The actual native state re-arms entry.
             if(transition||DeathMario.Active||controller==null||(actionPose&&(actionGroup=="wake"||actionGroup=="upgrade"||actionGroup=="hazard-return"||actionGroup=="web"||actionGroup=="web-fall"||actionGroup=="dream-arrival"||actionGroup==DreamerSequenceMario.Group||actionGroup==BirthplaceMario.Group)))return;
-            Component current=CapAccess.Read(heroType,"instance") as Component;
+            Component current=CapAccess.Read(heroType,"SilentInstance") as Component;
             if(current==null||!CapAccess.Flag(CapAccess.Read(current,"cState"),"transitioning"))return;
             int state=Convert.ToInt32(CapAccess.Read(current,"transitionState"));
             BeginTransition(current,Convert.ToInt32(CapAccess.Read(current,"gatePosition")),state!=1,false);

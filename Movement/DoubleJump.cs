@@ -206,7 +206,7 @@ namespace HollowMario
             Sync(controller, follow);
             object hero = Hero(controller);
             bool recovery=RecoveryAction(follow.Action(controller))||CapAccess.Flag(controller,"HardLanding");
-            if (!Ready(hero, controller, follow) || (!recovery&&priority.Reserved) || NoBonk.Pending)
+            if (!Ready(hero, controller, follow) || (!recovery&&priority.Reserved) || NoBonk.Pending || VerticalConveyors.Pending)
             {
                 return true;
             }

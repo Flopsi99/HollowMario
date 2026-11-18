@@ -105,12 +105,14 @@ namespace MarioHollow
             internal Vector3 Position;
             internal Vector3 LastPosition;
             internal bool NeedsVelocityReset;
+            internal Vector2 Offset,BoxSize;
         }
         private readonly Dictionary<Collider2D,Entry> tracked=new Dictionary<Collider2D,Entry>();
         public static int Objects;
         private Collider2D[] overlap=new Collider2D[512];
         private readonly HashSet<Collider2D> seen=new HashSet<Collider2D>();
         private readonly List<Collider2D> remove=new List<Collider2D>();
+        private readonly List<Collider2D> reshape=new List<Collider2D>();
         private float nextScan;
         private int failures;
         private uint? safetyFloor;
@@ -140,7 +142,8 @@ namespace MarioHollow
             {
                 var value=new SM64SurfaceObject{surfaceCount=(uint)array.Length,surfaces=pin.AddrOfPinnedObject()};
                 uint id=Native.sm64_surface_object_create(ref value);if(id==uint.MaxValue)throw new InvalidOperationException("Native collision allocation failed.");
-                return new Entry{Id=id,SeenAt=c.transform.position,Source=c,Matrix=c.transform.localToWorldMatrix,Position=c.transform.position,LastPosition=c.transform.position};
+                return new Entry{Id=id,SeenAt=c.transform.position,Source=c,Matrix=c.transform.localToWorldMatrix,Position=c.transform.position,LastPosition=c.transform.position,
+                    Offset=c.offset,BoxSize=c is BoxCollider2D box?box.size:Vector2.zero};
             }
             finally{pin.Free();}
         }
@@ -154,10 +157,14 @@ namespace MarioHollow
         }
         [MethodImpl(MethodImplOptions.NoInlining)]public void Tick(Vector2 centre,bool force)
         {
-            remove.Clear();foreach(var pair in tracked)
+            remove.Clear();reshape.Clear();foreach(var pair in tracked)
             {
                 Entry entry=pair.Value;Collider2D c=entry.Source;
                 if(c==null||!c.enabled||!c.gameObject.activeInHierarchy||c.isTrigger||c.usedByComposite){remove.Add(pair.Key);continue;}
+                // Animators can move/resize a solid collider without changing
+                // its Transform. Replace only that stale native shape, keeping
+                // the room scan throttled and all untouched objects intact.
+                if(c is BoxCollider2D box&&(c.offset!=entry.Offset||box.size!=entry.BoxSize)){reshape.Add(c);continue;}
                 Matrix4x4 matrix=c.transform.localToWorldMatrix;
                 if(matrix==entry.Matrix){if(entry.NeedsVelocityReset)UpdatePosition(entry,c.transform.position);continue;}
                 bool rotation=false;for(int row=0;row<3;row++)for(int col=0;col<3;col++)rotation|=matrix[row,col]!=entry.Matrix[row,col];
@@ -167,6 +174,11 @@ namespace MarioHollow
                 entry.Matrix=matrix;
             }
             foreach(Collider2D key in remove)Drop(key);
+            foreach(Collider2D key in reshape)
+            {
+                Drop(key);Entry replacement=Create(key);
+                if(replacement!=null)tracked.Add(key,replacement);
+            }
             if(!force&&Time.unscaledTime<nextScan)return;nextScan=Time.unscaledTime+.2f;
             int layers=LayerMask.GetMask("Terrain","Soft Terrain");
             int count;

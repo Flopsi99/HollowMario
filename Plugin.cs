@@ -20,7 +20,7 @@ namespace HollowMario
 
         internal const string PluginName = "Hollow Mario";
 
-        internal const string PluginVersion = "0.10.129";
+        internal const string PluginVersion = "0.10.135";
 
         private void Awake()
         {
@@ -243,6 +243,10 @@ namespace HollowMario
                 Log.LogWarning("Mario's foot contact could not be connected to native dropping platforms.");
             try{CrumblingFloorContact.Arm();}
             catch(Exception error){Log.LogWarning("Crumbling floor contact unavailable: "+error.GetBaseException().Message);}
+            try{CrystalPeakCrushers.Arm(harmony);}
+            catch(Exception error){Log.LogWarning("Crystal Peak crusher slowdown unavailable: "+error.GetBaseException().Message);}
+            try{VerticalConveyors.Arm(harmony);}
+            catch(Exception error){Log.LogWarning("Vertical conveyor proxy handoff unavailable: "+error.GetBaseException().Message);}
             MethodInfo nativeWaterState = Swimming.ArmKnightWater(controllerType, AccessTools.TypeByName("HutongGames.PlayMaker.Fsm"));
             if (nativeWaterState != null)
                 harmony.Patch(nativeWaterState, prefix: new HarmonyMethod(typeof(Swimming), nameof(Swimming.BeforeKnightWaterState)));

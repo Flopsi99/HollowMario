@@ -40,6 +40,10 @@
       <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(HollowKnightDir)\hollow_knight_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Compile Remove="Tools\RoomEntryChecks\**" />
     <Compile Remove="Tools\ShadeRechargeChecks\**" />
     <Compile Remove="Tools\DiveSlideChecks\**" />

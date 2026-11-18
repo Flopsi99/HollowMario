@@ -20,6 +20,9 @@ namespace HollowMario
 
         public override void Initialize()
         {
+            using (var timing = new StartupTiming(Log, Plugin.PluginVersion, Time.realtimeSinceStartup))
+            {
+            timing.Next("requirements and ROM lookup");
             if (started) throw new InvalidOperationException("Mario's API build is already initialized.");
             if (AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == "BepInEx"))
                 throw new InvalidOperationException("This build uses the community API. Disable the BepInEx injector and restart Hollow Knight.");
@@ -31,15 +34,25 @@ namespace HollowMario
                 started = true;
                 host = new GameObject("Hollow Mario ROM setup");
                 UnityEngine.Object.DontDestroyOnLoad(host);
-                host.AddComponent<ApiRomSetup>().Begin(package, path => StartWithRom(package, game, path), LogError);
+                host.AddComponent<ApiRomSetup>().Begin(package, path => StartAfterSetup(package, game, path), LogError);
+                timing.Next("runtime setup handoff");
+                timing.Complete();
                 return;
             }
             started = true;
-            StartWithRom(package, game, rom);
+            StartWithRom(package, game, rom, timing);
+            }
         }
 
-        private void StartWithRom(string package, string game, string rom)
+        private void StartAfterSetup(string package, string game, string rom)
         {
+            using (var timing = new StartupTiming(Log, Plugin.PluginVersion, Time.realtimeSinceStartup))
+                StartWithRom(package, game, rom, timing);
+        }
+
+        private void StartWithRom(string package, string game, string rom, StartupTiming timing)
+        {
+            timing.Next("host assembly loading");
             AppDomain.CurrentDomain.SetData("HollowMario.LoadingRoute", "CommunityApi");
             Environment.SetEnvironmentVariable("MARIO_HK_ROMDIR", Path.GetDirectoryName(rom));
             var bridge = Assembly.LoadFrom(Path.Combine(package, "MarioHollow-native",
@@ -47,9 +60,12 @@ namespace HollowMario
                 ));
             Type bridgePlugin = bridge.GetType("MarioHollow.Plugin", true);
             Type engine = bridge.GetType("MarioHollow.Sm64", true);
+            timing.Next("API services and argument hooks");
             ApiContext.Initialize(package, game, WriteLog);
             ApiArgumentAdapter.Install();
+            timing.Next("Mario engine and ROM initialization");
             engine.GetMethod("Initialize").Invoke(null,new object[]{Path.Combine(package,"MarioHollow-native","sm64.dll"),rom});
+            timing.Next("host contracts, audio and controller");
             host = new GameObject("Hollow Mario API host");
             UnityEngine.Object.DontDestroyOnLoad(host);
             try
@@ -62,11 +78,14 @@ namespace HollowMario
             }
             if (host.GetComponent(bridge.GetType("MarioHollow.MarioController", true)) == null)
                 throw new InvalidOperationException("Hollow Mario's runtime did not finish starting. Restart the game before retrying.");
+            timing.Next("companion gameplay hooks");
             var companion = host.AddComponent<Plugin>();
             if (!companion.ApiStartupComplete)
                 throw new InvalidOperationException("Mario's companion did not finish starting. Check the preceding mod log and restart the game before retrying.");
+            timing.Next("controls and settings menu");
             ApiModSettings.Initialize(companion.Config);
             Log("Community API host initialized; shared companion " + Plugin.PluginVersion + ". Gameplay has not yet been verified.");
+            timing.Complete();
             }
             catch
             {

@@ -82,8 +82,12 @@ namespace BepInEx.Configuration
                 }
                 entry.SetWithoutSaving(loaded);
             });
-            Section(section)[key] = Convert.ToString(value, CultureInfo.InvariantCulture);
-            if (SaveOnConfigSet) Save();
+            string serialized = Convert.ToString(value, CultureInfo.InvariantCulture);
+            Section(section)[key] = serialized;
+            // Reading an already-persisted setting must not force another
+            // write-through rename on the game's startup thread. New/imported
+            // settings and repairs still persist; explicit Save is unchanged.
+            if (SaveOnConfigSet && (!File.Exists(path) || !string.Equals(raw, serialized, StringComparison.Ordinal))) Save();
             return entry;
         }
 

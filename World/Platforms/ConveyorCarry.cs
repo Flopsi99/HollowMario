@@ -165,6 +165,7 @@ namespace HollowMario
 
         internal static void Forget()
         {
+            VerticalConveyors.Forget();
             appliedBeltSpeed = 0f;
             takeoffSpeed = 0f;
             hasTakeoffSpeed = false;

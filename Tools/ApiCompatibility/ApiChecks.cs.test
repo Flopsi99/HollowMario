@@ -77,6 +77,10 @@ internal static class ApiChecks
                 "Repeated replacement on the actual test drive retains the latest value.");
             string beforeRejectedWrite = File.ReadAllText(file);
             File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+            var readOnlySettings = new ConfigFile(file);
+            Check(!readOnlySettings.Bind("Debug", "Enabled", true, "").Value
+                && Math.Abs(readOnlySettings.Bind("Charms", "QuickSlashAirRecoverySeconds", .2f, "").Value - .29f) < .0001f,
+                "Startup can bind persisted settings on a read-only file without attempting write-through replacements.");
             bool rejected = false;
             try { settings.Save(); } catch (System.ComponentModel.Win32Exception) { rejected = true; }
             finally { File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly); }
@@ -103,6 +107,32 @@ internal static class ApiChecks
                 return File.Exists(candidate) ? Assembly.LoadFrom(candidate) : null;
             };
             var companion = Assembly.LoadFrom(Path.Combine(package, "HollowMario.dll"));
+            var startupType = companion.GetType("HollowMario.StartupTiming", true);
+            var startupMessages = new List<string>();
+            var startupFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var startup = Activator.CreateInstance(startupType, startupFlags, null,
+                new object[] { (Action<string>)startupMessages.Add, "fixture", 1.25d }, null);
+            startupType.GetMethod("Next", startupFlags).Invoke(startup, new object[] { "ROM lookup" });
+            startupType.GetMethod("Next", startupFlags).Invoke(startup, new object[] { "native initialization" });
+            startupType.GetMethod("Complete", startupFlags).Invoke(startup, null);
+            int startupLines = startupMessages.Count;
+            ((IDisposable)startup).Dispose();
+            startupType.GetMethod("Next", startupFlags).Invoke(startup, new object[] { "gameplay" });
+            Check(startupMessages.Any(x => x.Contains("game uptime=1.250s"))
+                && startupMessages.Any(x => x.Contains("finished ROM lookup; step="))
+                && startupMessages.Last().StartsWith("startup: finished; total=")
+                && startupMessages.Count == startupLines,
+                "Startup stages have invariant timings and stop reporting after completion, including disposal.");
+            var interrupted = Activator.CreateInstance(startupType, startupFlags, null,
+                new object[] { (Action<string>)startupMessages.Add, "fixture", 0d }, null);
+            startupType.GetMethod("Next", startupFlags).Invoke(interrupted, new object[] { "failed stage" });
+            ((IDisposable)interrupted).Dispose();
+            Check(startupMessages.Last().Contains("stopped during failed stage"), "Interrupted startup names the unfinished stage without claiming success.");
+            var brokenLog = Activator.CreateInstance(startupType, startupFlags, null,
+                new object[] { (Action<string>)(text => { throw new IOException("fixture logger failure"); }), "fixture", 0d }, null);
+            startupType.GetMethod("Next", startupFlags).Invoke(brokenLog, new object[] { "still initializes" });
+            startupType.GetMethod("Complete", startupFlags).Invoke(brokenLog, null);
+            ((IDisposable)brokenLog).Dispose();
             Type debug = companion.GetType("HollowMario.DebugSettings", true);
             var debugFlags=BindingFlags.Static|BindingFlags.NonPublic;
             var freshDebug=new ConfigFile(Path.Combine(scratch,"fresh-debug.cfg"));

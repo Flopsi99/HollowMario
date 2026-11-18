@@ -19,6 +19,21 @@ class Controller {public Hero hero=new Hero();public uint Action;public int Mari
 static class TestNative {public static readonly object Sync=new object();}
 namespace HollowMario
 {
+    // This source-linked policy fixture has no Unity scene or conveyor system.
+    // The real conveyor/native integration has its own scene-endpoint checks.
+    static class VerticalConveyors
+    {
+        internal struct Saved { }
+        internal static void Configure(Type native) { }
+        internal static void Install(string path,IntPtr module) { }
+        internal static void BeginTick(bool allow,int id) { }
+        internal static void BeforeAirStep(IntPtr mario) { }
+        internal static bool AfterAirStep(IntPtr mario,int result,uint source)=>false;
+        internal static bool PrepareKick(IntPtr mario,out Saved saved){saved=default;return false;}
+        internal static void RestoreKick(IntPtr mario,Saved saved) { }
+        internal static void ActionInitialized(IntPtr mario,uint action) { }
+        internal static void Dispose() { }
+    }
     class Plugin {internal static Plugin Instance=new Plugin();internal KnightResetFollow knightFollow=new KnightResetFollow();internal ManualLogSource Log=new ManualLogSource("Quick Slash check");internal static int Episodes;internal static void QuickSlashNeutral(object c){Episodes++;}}
     class KnightResetFollow
     {

@@ -464,9 +464,32 @@
     "source": "IndependentHost/RegressionChecks/Fixtures/WaterColumnChecks.cs"
   },
   {
+    "name": "CrystalCrusherChecks",
+    "kind": "fixture",
+    "source": "IndependentHost/RegressionChecks/Fixtures/CrystalCrusherChecks.cs"
+  },
+  {
+    "name": "VerticalConveyorChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/VerticalConveyorChecks.cs"
+  },
+  {
+    "name": "VerticalConveyorSceneChecks",
+    "kind": "fixture",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/VerticalConveyorSceneChecks.cs"
+  },
+  {
     "name": "CompoundCollisionChecks",
     "kind": "native",
     "hostReferences": true,
     "source": "IndependentHost/RegressionChecks/Fixtures/CompoundCollisionChecks.cs"
+  },
+  {
+    "name": "AnimatedColliderChecks",
+    "kind": "native",
+    "hostReferences": true,
+    "source": "IndependentHost/RegressionChecks/Fixtures/AnimatedColliderChecks.cs"
   }
 ]
